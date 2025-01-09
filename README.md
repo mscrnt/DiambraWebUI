@@ -1,6 +1,6 @@
 # Diambra WebUI
 
-Super Mario RL is a Reinforcement Learning (RL) framework designed to train RL agents in the Super Mario environment. This project combines the power of Stable Baselines3, dynamic wrappers and callbacks, and a Flask-based GUI for easy visualization and management.
+Diambra WebUI is a Reinforcement Learning (RL) framework designed to train RL agents in dynamic gaming environments. It integrates **Stable Baselines3**, custom wrappers and callbacks, and a **Flask-based WebUI** for streamlined management, visualization, and interaction.
 
 ---
 
@@ -11,6 +11,8 @@ Super Mario RL is a Reinforcement Learning (RL) framework designed to train RL a
   - [Folder Structure](#folder-structure)
   - [Features](#features)
   - [Installation](#installation)
+    - [Prerequisites](#prerequisites)
+    - [Steps](#steps)
   - [Usage](#usage)
     - [Training](#training)
     - [Evaluation](#evaluation)
@@ -28,80 +30,93 @@ Super Mario RL is a Reinforcement Learning (RL) framework designed to train RL a
 ## Folder Structure
 
 ```
-project/
+DiambraWebUI/
 ├── checkpoints/                # Saved models during training
-├── configs/                    # Configuration files for training setups
+├── configs/                    # Training configuration files
 ├── gui/                        # GUI-related Python files
-├── logs/                       # Logs for training, debugging, and system events
-├── routes/                     # Flask route blueprints
-│   ├── config_routes.py        # Routes for managing configurations
-│   ├── dashboard_routes.py     # Routes for the main dashboard
-│   ├── stream_routes.py        # Routes for streaming logs and video
-│   ├── tensorboard_routes.py   # Routes for TensorBoard management
-│   └── training_routes.py      # Routes for managing training sessions
-├── static/                     # Static files for CSS, JS, and other assets
+├── logs/                       # Training and debugging logs
+├── routes/                     # Flask blueprints for modular routes
+│   ├── config_routes.py        # Config management endpoints
+│   ├── dashboard_routes.py     # Main dashboard routes
+│   ├── stream_routes.py        # Real-time streaming of logs or gameplay
+│   ├── tensorboard_routes.py   # TensorBoard integration
+│   └── training_routes.py      # Training session management
+├── static/                     # Static frontend assets
 │   ├── css/                    # Stylesheets
-│   ├── js/                     # JavaScript logic
-│   ├── json/                   # Tooltip data for the dashboard
+│   ├── js/                     # JavaScript files
+│   ├── json/                   # Data files for the dashboard
 │   ├── webfonts/               # Font assets
-│   └── favicon.ico             # Favicon for the site
-├── templates/                  # HTML templates for the Flask app
-│   ├── base.html               # Base HTML layout
+│   └── favicon.ico             # Site icon
+├── templates/                  # HTML templates for Flask
+│   ├── base.html               # Base layout for the app
 │   ├── index.html              # Main dashboard page
-│   └── tensorboard.html        # TensorBoard integration page
+│   └── tensorboard.html        # TensorBoard page
+├── tools/                      # Utility scripts for RL and training
+│   ├── utils.py                # General-purpose utility functions
+│   ├── monitor.py              # Environment monitoring utilities
+│   ├── filter_keys.py          # Key filtering for training
+│   └── characters.py           # Character and environment management
 ├── .gitignore                  # Git ignore file
-├── app_callbacks.py            # Definitions for training callbacks
-├── app_wrappers.py             # Definitions for environment wrappers
+├── app_callbacks.py            # RL training callbacks
+├── app_wrappers.py             # RL environment wrappers
 ├── app.py                      # Flask app entry point
 ├── eval.py                     # Evaluation script for trained models
-├── global_state.py             # Shared global state for the app
-├── log_manager.py              # Centralized logging utility
-├── optuna.py                   # Hyperparameter tuning using Optuna
-├── preprocessing.py            # Preprocessing utilities for observations
+├── global_state.py             # Centralized global state management
+├── log_manager.py              # Logging utility for unified logging
+├── optuna.py                   # Hyperparameter optimization
+├── preprocessing.py            # Observation preprocessing utilities
 ├── README.md                   # Project documentation
-├── render_manager.py           # Utilities for rendering game frames
-├── requirements.txt            # List of dependencies
+├── render_manager.py           # Game frame rendering utilities
+├── requirements.txt            # Python dependencies
 ├── train.py                    # Main training script
-└── utils.py                    # Utility functions and helper classes
+└── setup.py                    # Project setup and packaging
 ```
 
 ---
 
 ## Features
 
-- **Dynamic Wrappers and Callbacks**: Modular wrapper and callback management using the `Blueprint` pattern.
-- **Flask-based GUI**: Interactive web dashboard for controlling training and viewing real-time updates.
-- **TensorBoard Integration**: Built-in visualization of training progress.
-- **Advanced Logging**: Centralized logging with dynamic updates on the GUI.
-- **Configurable Training**: Manage and reuse configurations through the GUI.
-- **Hyperparameter Optimization**: Integrated Optuna support for fine-tuning.
-- **Video Streaming**: Real-time rendering of gameplay on the dashboard.
-- **Extensibility**: Easy addition of new wrappers, callbacks, and training logic.
+- **Dynamic Wrappers & Callbacks**: Customizable, modular environment management.
+- **Flask WebUI**: Interactive control panel for managing training and monitoring progress.
+- **TensorBoard Integration**: Live training metrics visualization.
+- **Advanced Logging**: Comprehensive logging with real-time updates.
+- **Configurable Workflows**: Save, load, and modify training configurations.
+- **Hyperparameter Optimization**: Use Optuna for fine-tuning.
+- **Real-time Gameplay Streaming**: Watch RL agents perform live.
+- **Extensible Design**: Easy integration of new models, wrappers, and features.
 
 ---
 
 ## Installation
 
+### Prerequisites
+
+- Python 3.8+
+- Virtual environment support (e.g., `venv` or `conda`)
+- GPU with CUDA support (optional, for accelerated training)
+
+### Steps
+
 1. **Clone the Repository**:
    ```bash
    git clone <repository_url>
-   cd <repository_name>
+   cd DiambraWebUI
    ```
 
-2. **Install Python Dependencies**:
+2. **Set Up the Environment**:
    ```bash
    python -m venv venv
-   source venv/bin/activate   # On Windows: venv\Scripts\activate
+   source venv/bin/activate  # Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
-3. **Run the Flask App**:
+3. **Run the WebUI**:
    ```bash
    python app.py
    ```
 
-4. **Open in Browser**:
-   Navigate to `http://127.0.0.1:5000` to access the GUI.
+4. **Access the Interface**:
+   Open `http://127.0.0.1:5000` in a web browser.
 
 ---
 
@@ -109,23 +124,22 @@ project/
 
 ### Training
 
-1. Launch the Flask app and configure training through the GUI.
-2. Start training and monitor logs, video streams, and TensorBoard.
-3. Save and load configurations for reuse.
+- Launch the WebUI, configure training parameters, and start sessions.
+- Monitor progress via live metrics, logs, and gameplay streams.
 
 ### Evaluation
 
-Evaluate a trained model:
-```bash
-python eval.py --model_path checkpoints/model.zip
-```
+- Evaluate trained models:
+  ```bash
+  python eval.py --model checkpoints/model.zip
+  ```
 
 ### Hyperparameter Optimization
 
-Run Optuna:
-```bash
-python optuna.py
-```
+- Run Optuna for tuning:
+  ```bash
+  python optuna.py
+  ```
 
 ---
 
@@ -133,36 +147,32 @@ python optuna.py
 
 ### Core Scripts
 
-1. **`train.py`**: Training script with environment setup and dynamic wrapper/callback application.
-2. **`eval.py`**: Evaluation script for assessing trained models.
-3. **`optuna.py`**: Hyperparameter tuning using Optuna.
-4. **`log_manager.py`**: Manages logging across all components.
+1. **`train.py`**: Main training logic.
+2. **`eval.py`**: Model evaluation.
+3. **`optuna.py`**: Hyperparameter tuning.
+4. **`log_manager.py`**: Centralized logging across components.
 
 ### Wrappers
 
-- Defined in `app_wrappers.py`.
-- Extend or modify environment behavior.
-- Examples: `EnhancedStatsWrapper`, `RewardManager`.
+- Located in `app_wrappers.py`.
+- Enhance and modify environments, e.g., reward shaping, observation filtering.
 
 ### Callbacks
 
-- Defined in `app_callbacks.py`.
-- Automate tasks during training.
-- Examples: `AutoSave`, `RenderCallback`.
+- Found in `app_callbacks.py`.
+- Automate tasks such as checkpoint saving, rendering, and custom metrics.
 
 ### GUI
 
-1. **Frontend**:
-   - CSS, JavaScript, and templates in `static/` and `templates/`.
-2. **Backend**:
-   - Flask blueprints in `routes/`.
+- **Frontend**: HTML, CSS, and JavaScript in `templates/` and `static/`.
+- **Backend**: Flask route blueprints in `routes/`.
 
 ---
 
 ## Contributing
 
 1. Fork the repository.
-2. Create a branch: `git checkout -b feature-name`.
+2. Create a feature branch: `git checkout -b feature-name`.
 3. Commit changes: `git commit -m "Add feature"`.
 4. Push: `git push origin feature-name`.
 5. Submit a pull request.
@@ -171,5 +181,4 @@ python optuna.py
 
 ## License
 
-This project is licensed under the MIT License.
-```
+Licensed under the MIT License.

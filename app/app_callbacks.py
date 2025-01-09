@@ -2,9 +2,7 @@
 
 from stable_baselines3.common.callbacks import BaseCallback
 from log_manager import LogManager
-from utils import load_blueprints as Blueprint
-
-
+from app.tools.utils import callback_blueprint as Blueprint
 
 
 class RenderCallback(BaseCallback):

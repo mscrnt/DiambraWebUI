@@ -2,7 +2,7 @@
 
 from flask import Blueprint, render_template, jsonify, request
 from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG, DEFAULT_PATHS
-from utils import callback_blueprint  # Ensure this is correctly defined elsewhere
+from app.tools.utils import callback_blueprint  # Ensure this is correctly defined elsewhere
 import importlib
 import inspect
 

@@ -1,9 +1,9 @@
-# path: ./train.py
+# path: ./app/training_manager.py
 
 from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS
 from render_manager import RenderManager
 from log_manager import LogManager
-from utils import callback_blueprint
+from app.tools.utils import callback_blueprint
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import CallbackList

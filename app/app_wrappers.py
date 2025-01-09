@@ -1,6 +1,6 @@
 # path: ./app_wrappers.py
 
-from utils import load_blueprints as Blueprint
+from app.tools.utils import load_blueprints as Blueprint
 
 
 EnhancedStatsWrapperBlueprint = Blueprint(
