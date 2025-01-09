@@ -1,4 +1,4 @@
-# Super Mario RL
+# Diambra WebUI
 
 Super Mario RL is a Reinforcement Learning (RL) framework designed to train RL agents in the Super Mario environment. This project combines the power of Stable Baselines3, dynamic wrappers and callbacks, and a Flask-based GUI for easy visualization and management.
 
@@ -6,7 +6,7 @@ Super Mario RL is a Reinforcement Learning (RL) framework designed to train RL a
 
 ## Table of Contents
 
-- [Super Mario RL](#super-mario-rl)
+- [Diambra WebUI](#diambra-webui)
   - [Table of Contents](#table-of-contents)
   - [Folder Structure](#folder-structure)
   - [Features](#features)

@@ -1,11 +1,10 @@
 version: '3.8'
 
 services:
-  mario_rl:
+  diambra_webui:
     build: .
     ports:
       - "5000:5000"
-      - "5432:5432"
       - "6006:6006"
     volumes:
       - ./app:/app
@@ -13,6 +12,5 @@ services:
       FLASK_APP: app.py
       FLASK_ENV: development
       FLASK_DEBUG: 1
-    entrypoint: ["/docker-entrypoint-initdb.d/init_postgres.sh"]
     stdin_open: true
     tty: true

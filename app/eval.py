@@ -1,5 +1,5 @@
 from stable_baselines3 import PPO
-from gui import create_env, render_frame
+from app import create_env, render_frame
 from log_manager import LogManager
 import torch
 import cv2

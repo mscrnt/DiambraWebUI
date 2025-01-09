@@ -2,7 +2,7 @@
 
 from flask import Flask, render_template, request
 from global_state import training_manager, app_logger # Import global instances
-from gui import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG
+from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG
 from routes.training_routes import create_training_blueprint
 from routes.config_routes import create_config_blueprint
 from routes.tensorboard_routes import create_tensorboard_blueprint
@@ -11,7 +11,6 @@ from routes.stream_routes import create_stream_blueprint
 import logging
 import requests
 from threading import Timer
-from db_manager import DBManager
 
 
 app = Flask(__name__)
@@ -25,11 +24,11 @@ def suppress_logging():
         log.setLevel(logging.ERROR)
 
 # Register Blueprints with logger explicitly passed
-app.register_blueprint(create_training_blueprint(training_manager, app_logger, DBManager), url_prefix="/training")
+app.register_blueprint(create_training_blueprint(training_manager, app_logger), url_prefix="/training")
 app.register_blueprint(create_config_blueprint(training_manager, app_logger), url_prefix="/config")
 app.register_blueprint(create_tensorboard_blueprint(training_manager, app_logger), url_prefix="/tensorboard")
 app.register_blueprint(create_stream_blueprint(training_manager, app_logger), url_prefix="/stream")
-app.register_blueprint(create_dashboard_blueprint(training_manager, app_logger, DBManager))  # No prefix for the dashboard
+app.register_blueprint(create_dashboard_blueprint(training_manager, app_logger))  # No prefix for the dashboard
 
 @app.route("/", methods=["GET"])
 def index():
@@ -38,7 +37,7 @@ def index():
     """
     return render_template(
         "index.html",
-        title="Super Mario RL",
+        title="Diambra Training Dashboard",
         year=2024,  # Example year
     )
 

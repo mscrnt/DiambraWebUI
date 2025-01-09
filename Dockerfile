@@ -1,5 +1,5 @@
 # Base image
-FROM python:3.10-slim
+FROM pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime
 
 # Install system dependencies including PostgreSQL server
 RUN apt-get update && apt-get install -y \
@@ -8,18 +8,16 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     libffi-dev \
     python3-dev \
+    python3 \
+    python3-pip \
+    python3-venv \
     ffmpeg \
     libsm6 \
     libxext6 \
-    postgresql \
-    postgresql-contrib \
+    libgl1-mesa-glx \
+    libglib2.0-0 && \
     libpq-dev \
  && rm -rf /var/lib/apt/lists/*
-
-# Set environment variables for PostgreSQL
-ENV POSTGRES_USER=mario
-ENV POSTGRES_PASSWORD=peach
-ENV POSTGRES_DB=mariodb
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -33,12 +31,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application directory
 COPY app/ ./app
 
-# Copy PostgreSQL initialization script
-COPY init_postgres.sh /docker-entrypoint-initdb.d/init_postgres.sh
-RUN chmod +x /docker-entrypoint-initdb.d/init_postgres.sh
 
-# Expose the Flask and PostgreSQL ports
-EXPOSE 5000 5432 6006
+# Expose the Flask and Tensorboard ports
+EXPOSE 5000 6006
 
 # Set the entry point to the initialization script
-CMD ["/docker-entrypoint-initdb.d/init_postgres.sh"]
+CMD ["flask run --host=0.0.0.0 --port=5000 "]

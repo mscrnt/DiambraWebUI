@@ -1,13 +1,12 @@
 # path: ./train.py
 
-from gui import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS
+from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS
 from render_manager import RenderManager
 from log_manager import LogManager
-from utils import create_env, linear_schedule, load_blueprints as Blueprint
+from utils import callback_blueprint
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import CallbackList
-from preprocessing import MarioFeatureExtractor
 import threading
 import importlib
 import inspect
@@ -132,7 +131,7 @@ class TrainingManager:
             module = importlib.import_module(module_name)
             blueprints = {
                 name: obj for name, obj in inspect.getmembers(module)
-                if isinstance(obj, Blueprint)
+                if isinstance(obj, callback_blueprint)
             }
             logger.info(f"Loaded blueprints from {module_name}: {list(blueprints.keys())}")
             return blueprints
