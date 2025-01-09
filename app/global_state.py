@@ -1,6 +1,6 @@
 # path: global_state.py
 from app.training_manager import TrainingManager
-from log_manager import LogManager
+from app.log_manager import LogManager
 
 # Global instance of TrainingManager
 training_manager = TrainingManager()

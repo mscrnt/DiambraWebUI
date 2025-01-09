@@ -6,7 +6,7 @@ import threading
 enable_crt_shader = False
 
 
-def create_training_blueprint(training_manager, app_logger, db_manager):
+def create_training_blueprint(training_manager, app_logger, ):
     """
     Create the training blueprint and integrate the training_manager, logger, and db_manager.
 
@@ -18,8 +18,7 @@ def create_training_blueprint(training_manager, app_logger, db_manager):
     # Scoped logger
     logger = app_logger.__class__("training_routes")
 
-    # Pass db_manager to training_manager
-    training_manager.db_manager = db_manager
+
 
     training_blueprint = Blueprint("training_routes", __name__)
 

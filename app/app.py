@@ -1,13 +1,13 @@
 # path: ./app.py
 
 from flask import Flask, render_template, request
-from global_state import training_manager, app_logger # Import global instances
+from app.global_state import training_manager, app_logger # Import global instances
 from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG
-from routes.training_routes import create_training_blueprint
-from routes.config_routes import create_config_blueprint
-from routes.tensorboard_routes import create_tensorboard_blueprint
-from routes.dashboard_routes import create_dashboard_blueprint
-from routes.stream_routes import create_stream_blueprint
+from app.routes.training_routes import create_training_blueprint
+from app.routes.config_routes import create_config_blueprint
+from app.routes.tensorboard_routes import create_tensorboard_blueprint
+from app.routes.dashboard_routes import create_dashboard_blueprint
+from app.routes.stream_routes import create_stream_blueprint
 import logging
 import requests
 from threading import Timer

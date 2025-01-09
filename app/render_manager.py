@@ -1,7 +1,7 @@
 # path: ./render_manager.py
 
 import torch
-from log_manager import LogManager
+from app.log_manager import LogManager
 import threading
 import time
 from copy import deepcopy

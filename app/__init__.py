@@ -1,6 +1,6 @@
 # path: gui/__init__.py
 
-from tools.filter_keys import get_filter_keys
+from app.tools.filter_keys import get_filter_keys
 
 # Game Settings
 ENV_SETTINGS = {

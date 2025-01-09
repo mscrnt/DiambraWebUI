@@ -7,7 +7,7 @@ import importlib
 import inspect
 
 
-def create_dashboard_blueprint(training_manager, app_logger, DBManager):
+def create_dashboard_blueprint(training_manager, app_logger):
     """
     Create the dashboard blueprint and integrate the training_manager and logger.
 

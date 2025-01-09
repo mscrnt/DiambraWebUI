@@ -1,12 +1,15 @@
 # path: ./app/training_manager.py
 
 from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS
-from render_manager import RenderManager
-from log_manager import LogManager
+from app.render_manager import RenderManager
+from app.log_manager import LogManager
 from app.tools.utils import callback_blueprint
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import CallbackList
+from diambra.arena import load_settings_flat_dict, SpaceTypes
+from diambra.arena.stable_baselines3.make_sb3_env import make_sb3_env, EnvironmentSettings, WrappersSettings
+from diambra.arena.stable_baselines3.sb3_utils import linear_schedule, AutoSave
 import threading
 import importlib
 import inspect
@@ -240,7 +243,6 @@ class TrainingManager:
             "normalize_advantage": True,  # Default to True
             "sde_sample_freq": -1,
             "policy_kwargs": {
-                "features_extractor_class": MarioFeatureExtractor,
                 "features_extractor_kwargs": {"features_dim": 128},
                 "net_arch": [{"pi": [256, 256], "vf": [256, 256]}],
             },
@@ -351,47 +353,25 @@ class TrainingManager:
         """Initialize the environment and the model."""
         try:
             # Pass db_manager when creating the render environment
-            if self.config["random_stages"] == "True":
-                self.render_env = create_env(
-                    random_stages=self.config["random_stages"],
-                    stages=self.config["stages"],
-                    env_index=0,
-                    selected_wrappers=self.selected_wrappers,
-                    blueprints=self.wrapper_blueprints,
-                    db_manager=self.db_manager  # Pass db_manager here
-                )()
-            else:
-                self.render_env = create_env(
-                    env_index=0,
-                    selected_wrappers=self.selected_wrappers,
-                    blueprints=self.wrapper_blueprints,
-                    db_manager=self.db_manager  # Pass db_manager here
-                )()
+            self.render_env = make_sb3_env(
+                self.config["training_config"]["game_id"],
+                load_settings_flat_dict(EnvironmentSettings, self.config["training_config"]),
+                load_settings_flat_dict(WrappersSettings, self.config["hyperparameters"]),
+                rank=0,  # Render environment is always rank 0
+            )()
 
-            # Create training environments
+
+            # Training environments
             num_envs = int(self.config["num_envs"])
-            if self.config["random_stages"] == "True":
-                env_fns = [
-                    create_env(
-                        random_stages=self.config["random_stages"],
-                        stages=self.config["stages"],
-                        env_index=i + 1,
-                        selected_wrappers=self.selected_wrappers,
-                        blueprints=self.wrapper_blueprints,
-                        db_manager=self.db_manager  # Pass db_manager here
-                    )
-                    for i in range(num_envs)
-                ]
-            else:
-                env_fns = [
-                    create_env(
-                        env_index=i + 1,
-                        selected_wrappers=self.selected_wrappers,
-                        blueprints=self.wrapper_blueprints,
-                        db_manager=self.db_manager  # Pass db_manager here
-                    )
-                    for i in range(num_envs)
-                ]
+            env_fns = [
+                make_sb3_env(
+                    self.config["training_config"]["game_id"],
+                    load_settings_flat_dict(EnvironmentSettings, self.config["training_config"]),
+                    load_settings_flat_dict(WrappersSettings, self.config["hyperparameters"]),
+                    rank=i + 1,
+                )
+                for i in range(num_envs)
+            ]
             self.env = VecMonitor(SubprocVecEnv(env_fns))
 
             # Create PPO model

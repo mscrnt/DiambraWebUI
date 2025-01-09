@@ -1,6 +1,6 @@
 # path: ./utils.py
 
-from log_manager import LogManager
+from app.log_manager import LogManager
 from abc import ABC
 from inspect import signature
 

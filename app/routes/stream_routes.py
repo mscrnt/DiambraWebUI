@@ -1,8 +1,8 @@
 # path: routes/stream_routes.py
 
 from flask import Response, Blueprint
-from render_manager import generate_frame_stream
-from log_manager import log_queue
+from app.render_manager import generate_frame_stream
+from app.log_manager import log_queue
 import queue
 
 
