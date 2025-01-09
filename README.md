@@ -56,14 +56,11 @@ DiambraWebUI/
 │   ├── monitor.py              # Environment monitoring utilities
 │   ├── filter_keys.py          # Key filtering for training
 │   └── characters.py           # Character and environment management
-├── .gitignore                  # Git ignore file
 ├── app_callbacks.py            # RL training callbacks
 ├── app_wrappers.py             # RL environment wrappers
 ├── app.py                      # Flask app entry point
-├── eval.py                     # Evaluation script for trained models
 ├── global_state.py             # Centralized global state management
 ├── log_manager.py              # Logging utility for unified logging
-├── optuna.py                   # Hyperparameter optimization
 ├── preprocessing.py            # Observation preprocessing utilities
 ├── README.md                   # Project documentation
 ├── render_manager.py           # Game frame rendering utilities
