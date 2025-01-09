@@ -1,0 +1,9 @@
+/app/checkpoints
+/app/configs
+/app/logs
+/venv
+/wvenv
+/__pycache__*
+*.pyc
+/app/routes/__pycache__/*.pyc
+*.log

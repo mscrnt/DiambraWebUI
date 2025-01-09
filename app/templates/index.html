@@ -1,0 +1,55 @@
+<!-- path: templates/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/training_dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="32x32" type="image/icon">
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header">
+        <div class="header-left">
+            <h1>Super Mario RL Dashboard</h1>
+            <nav>
+                <ul class="nav-list">
+                    <li><a href="/dashboard/training" id="training-dashboard-link" class="nav-link" aria-label="Training Dashboard">Training</a></li>
+                    <li><a href="/tensorboard" id="tensorboard-link" class="nav-link" aria-label="TensorBoard Dashboard">TensorBoard</a></li>
+                    <li><a href="/dashboard/metrics" id="metrics-dashboard-link" class="nav-link" aria-label="Metrics Dashboard">Metrics</a></li>
+                </ul>
+            </nav>
+        </div>
+        <div id="training-status" style="text-align: right;">
+            <h2 style="margin: 0;">Status: <span id="status" style="color: #FFA500;">Connecting...</span></h2>
+            <button id="start-training" class="action-button" disabled>
+                <i class="fas fa-play"></i> Start
+            </button>
+            <button id="stop-training" class="action-button" disabled>
+                <i class="fas fa-stop"></i> Stop
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Section -->
+    <main id="dynamic-content">
+        <h2>Welcome to Super Mario RL Dashboard!</h2>
+        <p>Select a section from the navigation bar to begin.</p>
+    </main>
+
+    <!-- Error Placeholder -->
+    <div id="error-placeholder" style="display: none; color: red; text-align: center; margin-top: 20px;">
+        <p>An error occurred while loading content. Please try again.</p>
+    </div>
+
+    <!-- Core Scripts -->
+    <script src="{{ url_for('static', filename='js/index.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/training_dashboard.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/metrics_dashboard.js') }}" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>

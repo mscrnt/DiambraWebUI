@@ -1,0 +1,155 @@
+@font-face {
+    font-family: 'Roboto';
+    src: url('Roboto-ThinItalic-webfont.eot');
+    src: url('Roboto-ThinItalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('Roboto-ThinItalic-webfont.woff') format('woff'),
+         url('Roboto-ThinItalic-webfont.ttf') format('truetype'),
+         url('Roboto-ThinItalic-webfont.svg#RobotoThinItalic') format('svg'); 
+    font-weight: 200;
+    font-style: italic;
+}
+
+/* General Styling */
+body {
+    font-family: 'Roboto', serif; /* Pixelated retro font */
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #000428, #004e92); /* Retro blue gradient */
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: cover;
+    color: #fff;
+    text-shadow: 0.1rem 0.1rem 0.2rem #000; /* Subtle shadow for retro look */
+    overflow-x: hidden;
+}
+
+/* Header Styles */
+.header {
+    background: linear-gradient(to right, #1e3c72, #2a5298); /* Retro blue header gradient */
+    color: #f8e71c; /* Retro bright yellow text */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    border-bottom: 0.2rem solid #f8e71c; /* Retro yellow border */
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.5); /* Retro shadow */
+}
+
+.header-left h1 {
+    font-size: 1.5rem;
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.nav-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 1.5rem;
+}
+
+.nav-link {
+    color: #f8e71c;
+    text-decoration: none;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.nav-link:hover {
+    text-decoration: underline;
+    color: #50e3c2; /* Retro green highlight */
+}
+
+.header-right {
+    text-align: right;
+}
+
+.status-text {
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.status-indicator {
+    color: #007BFF;
+}
+
+/* Training Status */
+#training-status {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+#training-status h2 {
+    margin: 0;
+    font-size: 2rem;
+}
+
+
+/* Buttons */
+button {
+    background: #f8e71c; /* Bright yellow retro button */
+    color: #000;
+    border: none;
+    padding: 0.8rem 1.2rem;
+    cursor: pointer;
+    font-size: 1rem;
+    text-transform: uppercase;
+    box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.5);
+    transition: transform 0.1s ease-in-out;
+}
+
+button:hover {
+    transform: scale(1.1); /* Slight zoom for retro feedback */
+    background: #ffcc00;
+}
+
+button:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+    color: #999;
+    text-shadow: none;
+}
+
+.action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* Main Content */
+main {
+    padding: 2rem;
+}
+
+/* Footer Styles */
+.footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background: linear-gradient(to right, #2c3e50, #4ca1af); /* Retro footer gradient */
+    color: #f8e71c;
+    text-align: center;
+    padding: 1rem 0;
+    border-top: 0.2rem solid #f8e71c;
+    text-transform: uppercase;
+}
+
+.nav-link.active {
+    font-weight: bold;
+    color: #007BFF !important; /* Ensure active link is blue */
+    text-decoration: underline;
+    text-decoration-color: #f8e71c !important; /* Custom underline color */
+    text-decoration-thickness: 2px; /* Set the thickness of the underline */
+    text-underline-offset: 3px; /* Offset the underline by a few pixels */
+}
+
+
+
+.nav-link.active:hover {
+    color: #007BFF; /* Keep the active color even on hover */
+    text-decoration: underline;
+}
