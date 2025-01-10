@@ -1,7 +1,7 @@
 # path: ./app_callbacks.py
 
 from stable_baselines3.common.callbacks import BaseCallback
-from log_manager import LogManager
+from app.log_manager import LogManager
 from app.tools.utils import callback_blueprint as Blueprint
 
 

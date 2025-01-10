@@ -1,7 +1,13 @@
 # path: routes/dashboard_routes.py
 
 from flask import Blueprint, render_template, jsonify, request
-from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG, DEFAULT_PATHS
+from app import (
+    DEFAULT_HYPERPARAMETERS,
+    DEFAULT_TRAINING_CONFIG,
+    DEFAULT_PATHS,
+    ENV_SETTINGS,
+    WRAPPER_SETTINGS,
+)
 from app.tools.utils import callback_blueprint  # Ensure this is correctly defined elsewhere
 import importlib
 import inspect
@@ -70,6 +76,8 @@ def create_dashboard_blueprint(training_manager, app_logger):
             hyperparameters=DEFAULT_HYPERPARAMETERS,
             training_config=DEFAULT_TRAINING_CONFIG,
             paths=DEFAULT_PATHS,
+            env_settings=ENV_SETTINGS,  # Added env_settings
+            wrapper_settings=WRAPPER_SETTINGS,  # Added wrapper_settings
             wrappers=wrappers,
             callbacks=callbacks,
         )

@@ -1,4 +1,4 @@
-# path: gui/__init__.py
+# path: .app/__init__.py
 
 from app.tools.filter_keys import get_filter_keys
 
@@ -35,7 +35,7 @@ WRAPPER_SETTINGS = {
 # Default hyperparameters
 DEFAULT_HYPERPARAMETERS = {
     "n_steps": 256,
-    "batch_size": 256,
+    "batch_size": 64,
     "gamma": 0.94,
     "gae_lambda": 0.95,
     "clip_range_start": 0.15,

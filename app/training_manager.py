@@ -13,6 +13,8 @@ from diambra.arena.stable_baselines3.sb3_utils import linear_schedule, AutoSave
 import threading
 import importlib
 import inspect
+import app.app_callbacks
+import app.app_wrappers
 
 
 logger = LogManager("TrainingManager")
@@ -223,10 +225,8 @@ class TrainingManager:
         """Merge and parse user-provided configurations."""
         default_config = {
             "num_envs": 1,
-            "stages": [],
-            "random_stages": False,  # Default to False
             "total_timesteps": 32000000,
-            "n_steps": 2048,
+            "n_steps": 256,
             "batch_size": 64,
             "gamma": 0.99,
             "gae_lambda": 0.95,
@@ -241,7 +241,6 @@ class TrainingManager:
             "ent_coef": 0.01,
             "max_grad_norm": 0.5,
             "normalize_advantage": True,  # Default to True
-            "sde_sample_freq": -1,
             "policy_kwargs": {
                 "features_extractor_kwargs": {"features_dim": 128},
                 "net_arch": [{"pi": [256, 256], "vf": [256, 256]}],
