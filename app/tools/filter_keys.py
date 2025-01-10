@@ -1,5 +1,7 @@
+# path: .app/tools/filter_keys.py
+
 def get_filter_keys(game_id, flatten):
-    # Global keys available for all games
+    # Global keys available for all games 
     global_keys = {
         "stage",
         "timer",

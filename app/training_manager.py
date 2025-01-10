@@ -13,8 +13,7 @@ from diambra.arena.stable_baselines3.sb3_utils import linear_schedule, AutoSave
 import threading
 import importlib
 import inspect
-import app.app_callbacks
-import app.app_wrappers
+
 
 
 logger = LogManager("TrainingManager")

@@ -101,7 +101,7 @@ button {
     transition: transform 0.1s ease-in-out;
 }
 
-button:hover {
+#start-training:hover, #stop-training:hover {
     transform: scale(1.1); /* Slight zoom for retro feedback */
     background: #ffcc00;
 }

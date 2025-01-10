@@ -2,6 +2,19 @@
 
 from app.tools.filter_keys import get_filter_keys
 
+# Dictionary of available games and their IDs
+AVAILABLE_GAMES = {
+    "mvsc": "Marvel VS Capcom",
+    "doapp": "Dead Or Alive ++",
+    "sfiii3n": "Street Fighter III 3rd Strike",
+    "tektagt": "Tekken Tag Tournament",
+    "umk3": "Ultimate Mortal Kombat 3",
+    "samsh5sp": "Samurai Showdown 5 Special",
+    "kof98umh": "The King of Fighters ‘98: Ultimate Match Hero",
+    "xmvsf": "X-Men VS Street Fighter",
+    "soulclbr": "Soul Calibur",
+}
+ 
 # Game Settings
 ENV_SETTINGS = {
     'game_id': "",
@@ -74,4 +87,11 @@ DEFAULT_TRAINING_CONFIG = {
 
 
 # Exported symbols
-__all__ = ["DEFAULT_TRAINING_CONFIG", "DEFAULT_HYPERPARAMETERS", "DEFAULT_PATHS", "DB_CONFIG", "ENV_SETTINGS", "WRAPPER_SETTINGS"]
+__all__ = [
+    "AVAILABLE_GAMES",
+    "ENV_SETTINGS",
+    "WRAPPER_SETTINGS",
+    "DEFAULT_HYPERPARAMETERS",
+    "DEFAULT_PATHS",
+    "DEFAULT_TRAINING_CONFIG",
+]

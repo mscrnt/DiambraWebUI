@@ -2,12 +2,12 @@
 
 from flask import Flask, render_template, request
 from app.global_state import training_manager, app_logger # Import global instances
-from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG
 from app.routes.training_routes import create_training_blueprint
 from app.routes.config_routes import create_config_blueprint
 from app.routes.tensorboard_routes import create_tensorboard_blueprint
 from app.routes.dashboard_routes import create_dashboard_blueprint
 from app.routes.stream_routes import create_stream_blueprint
+from app.routes.settings_routes import create_settings_blueprint
 import logging
 import requests
 from threading import Timer
@@ -29,6 +29,8 @@ app.register_blueprint(create_config_blueprint(training_manager, app_logger), ur
 app.register_blueprint(create_tensorboard_blueprint(training_manager, app_logger), url_prefix="/tensorboard")
 app.register_blueprint(create_stream_blueprint(training_manager, app_logger), url_prefix="/stream")
 app.register_blueprint(create_dashboard_blueprint(training_manager, app_logger)) 
+app.register_blueprint(create_settings_blueprint(app_logger), url_prefix="/settings")
+
 
 @app.route("/", methods=["GET"])
 def index():

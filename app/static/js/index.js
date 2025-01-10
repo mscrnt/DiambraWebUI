@@ -135,9 +135,14 @@ async function loadDynamicContent(url, onLoad, resetToDefault = false) {
                 }
             });
 
-            // Call listeners conditionally based on the loaded URL
+            // Call listeners for Training Dashboard
             if (url.includes("/dashboard/training") && typeof initializeListenersForTrainingDashboard === "function") {
                 initializeListenersForTrainingDashboard();
+            }
+
+            // Call listeners for the settings page
+            if (url.includes("/settings") && typeof initializeListenersForSettingsMenu === "function") {
+                initializeListenersForSettingsMenu();
             }
 
             console.log(`Content loaded for URL: ${url}`);
@@ -208,12 +213,19 @@ function collectTrainingConfig() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     initializeHeaderControls(); // Set up header controls
-    loadCurrentConfig();
     highlightActivePage();
 
+    // Check if credentials file exists
+    const credentialsExist = await checkCredentialsFile();
 
-    // Automatically load the Training Dashboard on initial load
-    await loadDynamicContent("/dashboard/training", initializeHeaderControls, false);
+    // Default to settings if credentials are missing
+    if (!credentialsExist) {
+        console.warn("Credentials file not found. Redirecting to settings.");
+        await loadDynamicContent("/settings", initializeListenersForSettingsMenu, false);
+    } else {
+        // Otherwise, load the Training Dashboard by default
+        await loadDynamicContent("/dashboard/training", initializeHeaderControls, false);
+    }
 
     // Add event listener for the TensorBoard link
     const tensorboardLink = document.getElementById("tensorboard-link");
@@ -236,18 +248,57 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else {
         console.error("Training Dashboard link not found.");
     }
+
+    // Add event listener for the Settings link
+    const settingsLink = document.getElementById("settings-link");
+    if (settingsLink) {
+        settingsLink.addEventListener("click", async (event) => {
+            event.preventDefault();
+            await loadDynamicContent("/settings", initializeListenersForSettingsMenu);
+        });
+    } else {
+        console.error("Settings link not found.");
+    }
 });
 
-// Add event listener for the Metrics Dashboard link
-const metricsLink = document.getElementById("metrics-dashboard-link");
-if (metricsLink) {
-    metricsLink.addEventListener("click", async (event) => {
-        event.preventDefault();
-        await loadDynamicContent("/dashboard/metrics", initializeListenersForMetricsDashboard);
-    });
-} else {
-    console.error("Metrics Dashboard link not found.");
+async function checkCredentialsFile() {
+    console.log("Checking credentials file...");
+
+    try {
+        const response = await fetch("/settings/check-credentials");
+
+        // Check for HTTP errors
+        if (!response.ok) {
+            console.error("Failed to fetch credentials check. Status:", response.status);
+            return false;
+        }
+
+        const result = await response.json();
+        console.log("Credentials check response:", result);
+
+        // Validate the `result.exists` value
+        if (typeof result.exists !== "boolean") {
+            console.error("Invalid response format. 'exists' field is missing or not a boolean.");
+            return false;
+        }
+
+        // Update warning display if element exists
+        const warning = document.getElementById("credentials-warning");
+        if (!result.exists && warning) {
+            warning.style.display = "block"; // Show warning if credentials file is missing
+            console.log("Credentials missing. Warning displayed.");
+        } else if (result.exists && warning) {
+            warning.style.display = "none"; // Hide warning if credentials file exists
+            console.log("Credentials exist. Warning hidden.");
+        }
+
+        return result.exists; // Return whether the file exists
+    } catch (error) {
+        console.error("Error checking credentials file:", error);
+        return false;
+    }
 }
+
 
 async function loadCurrentConfig() {
     try {

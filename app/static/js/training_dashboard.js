@@ -464,39 +464,6 @@ function initializeBatchSizeDropdown() {
     populateBatchSizeDropdown();
 }
 
-function toggleStagesTextbox() {
-    const randomStagesDropdown = document.querySelector(`[name="training_config[random_stages]"]`);
-    const stagesTextbox = document.querySelector(`[name="training_config[stages]"]`);
-
-    if (!randomStagesDropdown || !stagesTextbox) {
-        console.error("Random stages dropdown or stages textbox not found.");
-        return;
-    }
-
-    const updateTextboxState = () => {
-        const isRandomStages = randomStagesDropdown.value === "True";
-
-        // Enable/Disable the textbox
-        stagesTextbox.disabled = !isRandomStages;
-
-        // Add hover text and grey-out style when disabled
-        if (!isRandomStages) {
-            // stagesTextbox.value = ""; // Clear the value when disabled
-            stagesTextbox.style.cursor = "not-allowed"; // Cursor indicates not clickable
-            stagesTextbox.title = "Enable 'Random Stages' to modify stages."; // Hover text
-        } else {
-            stagesTextbox.style.backgroundColor = ""; // Reset background color
-            stagesTextbox.style.cursor = ""; // Reset cursor
-            stagesTextbox.title = ""; // Remove hover text
-        }
-    };
-
-    // Initialize the state on page load
-    updateTextboxState();
-
-    // Add event listener for changes
-    randomStagesDropdown.addEventListener("change", updateTextboxState);
-}
 
 async function initializeShaderToggles() {
     const shaderToggles = {
@@ -584,6 +551,129 @@ async function initializeShaderToggles() {
     });
 }
 
+// Toggle the visibility of the dropdown menu
+function toggleDropdown(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
+
+    dropdown.style.display = dropdown.style.display === "none" ? "block" : "none";
+}
+
+// Update the label of the dropdown button based on selected options
+function updateFilterKeysLabel() {
+    const dropdownButton = document.querySelector(".dropdown-toggle");
+    const checkboxes = document.querySelectorAll("#filter-keys-dropdown input[type='checkbox']");
+    const selectedCount = Array.from(checkboxes).filter((checkbox) => checkbox.checked).length;
+
+    dropdownButton.innerHTML = `Selected (${selectedCount}) <i class="fas fa-chevron-down"></i>`;
+}
+
+// Initialize the dropdown and update label on page load
+function initializeFilterKeysDropdown() {
+    const dropdown = document.getElementById("filter-keys-dropdown");
+    if (!dropdown) return;
+
+    // Update the label initially based on pre-selected checkboxes
+    updateFilterKeysLabel();
+
+    // Close the dropdown menu when clicking outside
+    document.addEventListener("click", (event) => {
+        const dropdownButton = document.querySelector(".dropdown-toggle");
+        if (dropdown.style.display === "block" && !dropdown.contains(event.target) && !dropdownButton.contains(event.target)) {
+            dropdown.style.display = "none";
+        }
+    });
+
+    console.log("Filter Keys dropdown initialized.");
+}
+
+function initializeGameSelectListener() {
+    const gameSelect = document.getElementById("game-select");
+    const selectAllCheckbox = document.getElementById("select-all-keys");
+
+    if (!gameSelect || !selectAllCheckbox) {
+        console.error("Game select dropdown or Select All checkbox not found.");
+        return;
+    }
+
+    gameSelect.addEventListener("change", async (event) => {
+        const gameId = event.target.value;
+
+        try {
+            const response = await fetch("/update-game-id", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ game_id: gameId }),
+            });
+
+            if (response.ok) {
+                const { filterKeys } = await response.json();
+                console.log(`Game updated to ${gameId}, filter keys updated:`, filterKeys);
+
+                // Update the filter keys dropdown dynamically
+                const filterKeysDropdown = document.getElementById("filter-keys-dropdown");
+                if (filterKeysDropdown) {
+                    filterKeysDropdown.innerHTML = filterKeys
+                        .map(
+                            (key) => `
+                            <div class="dropdown-item" style="border-bottom: 1px solid #ccc; padding: 5px 0;">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input 
+                                        type="checkbox" 
+                                        class="filter-key-checkbox"
+                                        name="wrapper_settings[filter_keys][]" 
+                                        value="${key}" 
+                                        checked 
+                                    >
+                                    ${key}
+                                </label>
+                            </div>
+                        `
+                        )
+                        .join("");
+
+                    // Automatically check all boxes
+                    document
+                        .querySelectorAll(".filter-key-checkbox")
+                        .forEach((checkbox) => (checkbox.checked = true));
+
+                    // Reapply Select All checkbox logic
+                    updateSelectAllState();
+                }
+            } else {
+                console.error("Failed to update game ID.");
+            }
+        } catch (error) {
+            console.error("Error updating game ID:", error);
+        }
+    });
+
+    // Logic for the Select All checkbox
+    selectAllCheckbox.addEventListener("change", () => {
+        const isChecked = selectAllCheckbox.checked;
+        document
+            .querySelectorAll(".filter-key-checkbox")
+            .forEach((checkbox) => (checkbox.checked = isChecked));
+        updateFilterKeysLabel();
+    });
+
+    // Update Select All checkbox state based on individual selections
+    function updateSelectAllState() {
+        const allCheckboxes = document.querySelectorAll(".filter-key-checkbox");
+        const allChecked = Array.from(allCheckboxes).every((checkbox) => checkbox.checked);
+        selectAllCheckbox.checked = allChecked;
+    }
+
+    // Add listener to update Select All checkbox state
+    document.addEventListener("change", (event) => {
+        if (event.target.classList.contains("filter-key-checkbox")) {
+            updateSelectAllState();
+            updateFilterKeysLabel();
+        }
+    });
+
+    console.log("Game select listener initialized.");
+}
 
 
 function initializeListenersForTrainingDashboard() {
@@ -602,11 +692,14 @@ function initializeListenersForTrainingDashboard() {
     // Initialize batch size dropdown
     initializeBatchSizeDropdown();
 
-    // Initialize random stages toggle
-    toggleStagesTextbox();
+    // Initialize filter keys dropdown
+    initializeFilterKeysDropdown();    
 
     // Initialize CRT shader toggle
     initializeShaderToggles();
+
+    // Initialize game select dropdown listener
+    initializeGameSelectListener();
 
     console.log("Listeners for Training Dashboard initialized.");
 }

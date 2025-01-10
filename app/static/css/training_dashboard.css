@@ -41,7 +41,6 @@ input, select {
     color: #f8e71c; /* Yellow text */
     outline: none;
     border-radius: 0;
-    width: 100%;
     box-sizing: border-box;
 }
 
@@ -200,4 +199,63 @@ h2 {
     justify-content: center;
     gap: 10rem;
     margin-top: 1rem;
+}
+
+/* Dropdown Styling */
+.dropdown-container {
+    position: relative;
+    width: 100%;
+}
+
+.dropdown-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 0.5rem;
+    font-family: 'Press Start 2P', cursive, sans-serif;
+    font-size: 0.8rem;
+    background: #111;
+    border-radius: 3px;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+}
+
+.dropdown-toggle i {
+    margin-left: auto;
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 93%;
+    background: #111;
+    border: 0.2rem solid #50e3c2;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.8);
+    border-radius: 0;
+    z-index: 1000;
+    max-height: 10rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.5rem;
+    text-align: left;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    font-family: 'Press Start 2P', cursive, sans-serif;
+    color: #f8e71c;
+    cursor: pointer;
+}
+
+
+.dropdown-item input {
+    margin-right: 0.5rem;
+    transform: scale(1.2);
 }

@@ -6,7 +6,7 @@ from app.log_manager import log_queue
 import queue
 
 
-def create_stream_blueprint(training_manager, app_logger):
+def create_stream_blueprint(training_manager, app_logger): 
     """
     Create the stream blueprint and integrate the training_manager and logger.
 

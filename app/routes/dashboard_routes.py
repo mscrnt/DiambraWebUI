@@ -7,13 +7,15 @@ from app import (
     DEFAULT_PATHS,
     ENV_SETTINGS,
     WRAPPER_SETTINGS,
+    AVAILABLE_GAMES
 )
 from app.tools.utils import callback_blueprint  # Ensure this is correctly defined elsewhere
+from app.tools.filter_keys import get_filter_keys
 import importlib
 import inspect
 
 
-def create_dashboard_blueprint(training_manager, app_logger):
+def create_dashboard_blueprint(training_manager, app_logger):  
     """
     Create the dashboard blueprint and integrate the training_manager and logger.
 
@@ -80,7 +82,25 @@ def create_dashboard_blueprint(training_manager, app_logger):
             wrapper_settings=WRAPPER_SETTINGS,  # Added wrapper_settings
             wrappers=wrappers,
             callbacks=callbacks,
+            available_games=AVAILABLE_GAMES
         )
+    
+    @dashboard_blueprint.route("/update-game-id", methods=["POST"])
+    def update_game_id():
+        """
+        Update the game_id in environment settings and dynamically adjust filter keys.
+        """
+        data = request.get_json()
+        game_id = data.get("game_id")
+        if not game_id or game_id not in AVAILABLE_GAMES:
+            return jsonify({"error": "Invalid game ID"}), 400
+
+        ENV_SETTINGS["game_id"] = game_id
+        filter_keys = get_filter_keys(game_id, True)  # Dynamically update filter keys
+        WRAPPER_SETTINGS["filter_keys"] = filter_keys
+
+        return jsonify({"message": "Game ID updated", "filterKeys": filter_keys}), 200
+
 
 
     

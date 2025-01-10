@@ -3,7 +3,26 @@
 from stable_baselines3.common.callbacks import BaseCallback
 from app.log_manager import LogManager
 from app.tools.utils import callback_blueprint as Blueprint
+from diambra.arena.stable_baselines3.sb3_utils import AutoSave
 
+# Define the AutoSave blueprint with argument mapping
+AutoSaveBlueprint = Blueprint(
+    component_class=AutoSave,
+    component_type="callback",
+    required=True,
+    default_params={
+        "verbose": 1,
+    },
+    arg_map={
+        "check_freq": "autosave_freq",
+        "num_envs": "num_envs",
+        "save_path": "save_path",
+        "filename_prefix": "filename_prefix",
+        "training_manager": "training_manager",
+    },
+    name="AutoSave",
+    description="Automatically saves the model at regular intervals and supports graceful training termination.",
+)
 
 class RenderCallback(BaseCallback):
     """
@@ -39,5 +58,6 @@ RenderCallbackBlueprint = Blueprint(
 
 # Centralized callback blueprint repository
 callback_blueprints = {
+    "AutoSave": AutoSaveBlueprint,
     "RenderCallback": RenderCallbackBlueprint,
 }
