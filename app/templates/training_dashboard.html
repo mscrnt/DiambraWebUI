@@ -22,19 +22,19 @@
     <div id="main-container" style="display: flex; gap: 20px; margin-top: 20px;">
         <!-- Left Column: Configurable Items -->
         <div id="training-settings">
-            <!-- Training Config Section -->
+            <!-- Basic Settings Section -->
             <div style="margin-bottom: 20px;">
                 <h2>
-                    <i class="fas fa-cogs"></i> Training Config
-                    <i class="fas fa-question-circle tooltip-icon" onclick="openModal('training-config')"></i>
+                    <i class="fas fa-cogs"></i> Basic Settings
+                    <i class="fas fa-info-circle tooltip-icon" onclick="openModal('training-config')"></i>
                 </h2>
                 <div class="grid-container">
                     {% for key, value in training_config.items() %}
                     <div class="grid-item">
                         <label>
-                            {{ key | replace("_", " ") | title }}
-                            <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
                             {% if key == "game_id" %}
+                            Game
+                            <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
                             <select name="training_config[game_id]" id="game-select" class="config-input">
                                 {% for game_id, game_name in available_games.items() %}
                                 <option value="{{ game_id }}" {% if game_id == value %}selected{% endif %}>
@@ -42,12 +42,48 @@
                                 </option>
                                 {% endfor %}
                             </select>
+                            {% elif key == "num_envs" %}
+                            Number of Envs
+                            <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
+                            <input 
+                                type="number" 
+                                name="training_config[{{ key }}]" 
+                                value="{{ value }}" 
+                                min="1" 
+                                step="1" 
+                                class="config-input">
+                            {% elif key == "total_timesteps" %}
+                            Total Timesteps
+                            <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
+                            <input 
+                                type="number" 
+                                name="training_config[{{ key }}]" 
+                                value="{{ value }}" 
+                                min="1" 
+                                max="100000000" 
+                                step="1" 
+                                class="config-input">
+                            {% elif key == "autosave_freq" %}
+                            Autosave Freq
+                            <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
+                            <input 
+                                type="number" 
+                                name="training_config[{{ key }}]" 
+                                value="{{ value }}" 
+                                min="1" 
+                                max="100000000" 
+                                step="1" 
+                                class="config-input">
                             {% elif value is boolean %}
+                            {{ key | replace("_", " ") | title }}
+                            <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
                             <select name="training_config[{{ key }}]" class="config-input">
                                 <option value="True" {% if value == True %}selected{% endif %}>True</option>
                                 <option value="False" {% if value == False %}selected{% endif %}>False</option>
                             </select>
                             {% else %}
+                            {{ key | replace("_", " ") | title }}
+                            <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
                             <input 
                                 type="text" 
                                 name="training_config[{{ key }}]" 
@@ -64,30 +100,77 @@
             <div style="margin-bottom: 20px;">
                 <h2>
                     <i class="fas fa-globe"></i> Environment Settings
-                    <i class="fas fa-question-circle tooltip-icon" onclick="openModal('environment-settings')"></i>
+                    <i class="fas fa-info-circle tooltip-icon" onclick="openModal('environment-settings')"></i>
                 </h2>
                 <div class="grid-container">
                     {% for key, value in env_settings.items() %}
+                    {% if key != "game_id" %}
                     <div class="grid-item">
                         <label>
                             {{ key | replace("_", " ") | title }}
                             <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
+                            {% if key in ["difficulty", "outfits", "action_space", "frame_shape", "splash_screen", "show_final", "role", "n_players", "step_ratio"] %}
+                            <select name="env_settings[{{ key }}]" class="config-input">
+                                {% if key == "difficulty" %}
+                                <option value="None" {% if value == None %}selected{% endif %}>None</option>
+                                {% for level in range(1, 11) %}
+                                <option value="{{ level }}" {% if value == level %}selected{% endif %}>{{ level }}</option>
+                                {% endfor %}
+                                {% elif key == "outfits" %}
+                                <option value="1" {% if value == 1 %}selected{% endif %}>1</option>
+                                <option value="2" {% if value == 2 %}selected{% endif %}>2</option>
+                                <option value="3" {% if value == 3 %}selected{% endif %}>3</option>
+                                <option value="4" {% if value == 4 %}selected{% endif %}>4</option>
+                                {% elif key == "action_space" %}
+                                <option value="DISCRETE" {% if value == "DISCRETE" %}selected{% endif %}>DISCRETE</option>
+                                <option value="MULTI_DISCRETE" {% if value == "MULTI_DISCRETE" %}selected{% endif %}>MULTI DISCRETE</option>
+                                {% elif key == "frame_shape" %}
+                                <option value="(84, 84, 1)" {% if value == "(84, 84, 1)" %}selected{% endif %}>(84, 84, 1)</option>
+                                <option value="(96, 96, 1)" {% if value == "(96, 96, 1)" %}selected{% endif %}>(96, 96, 1)</option>
+                                {% elif key == "splash_screen" or key == "show_final" %}
+                                <option value="True" {% if value == True %}selected{% endif %}>True</option>
+                                <option value="False" {% if value == False %}selected{% endif %}>False</option>
+                                {% elif key == "role" %}
+                                <option value="None" {% if value == None %}selected{% endif %}>None</option>
+                                <option value="P1" {% if value == "P1" %}selected{% endif %}>P1</option>
+                                <option value="P2" {% if value == "P2" %}selected{% endif %}>P2</option>
+                                {% elif key == "n_players" %}
+                                <option value="1" {% if value == 1 %}selected{% endif %}>1</option>
+                                <option value="2" {% if value == 2 %}selected{% endif %}>2</option>
+                                {% elif key == "step_ratio" %}
+                                {% for ratio in range(1, 7) %}
+                                <option value="{{ ratio }}" {% if value == ratio %}selected{% endif %}>{{ ratio }}</option>
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                            {% elif key == "continue_game" %}
+                            <input 
+                                type="number" 
+                                name="env_settings[{{ key }}]" 
+                                value="{{ value }}" 
+                                min="0.0" 
+                                step="0.1" 
+                                class="config-input">
+                            {% else %}
                             <input 
                                 type="text" 
                                 name="env_settings[{{ key }}]" 
                                 value="{{ value }}" 
                                 class="config-input">
+                            {% endif %}
                         </label>
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </div>
+
 
             <!-- Wrapper Settings Section -->
             <div style="margin-bottom: 20px;">
                 <h2>
                     <i class="fas fa-layer-group"></i> Diambra Wrappers
-                    <i class="fas fa-question-circle tooltip-icon" onclick="openModal('wrapper-settings')"></i>
+                    <i class="fas fa-info-circle tooltip-icon" onclick="openModal('wrapper-settings')"></i>
                 </h2>
                 <div class="grid-container">
                     {% for key, value in wrapper_settings.items() %}
