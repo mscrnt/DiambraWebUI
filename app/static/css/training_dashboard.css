@@ -271,4 +271,13 @@ h2 {
     border-radius: 8px; /* Optional: Rounds the corners */
     padding: 1rem; /* Adds padding inside the container */
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional: Adds a subtle shadow for a modern look */
+
+    h2 {
+        margin-top: 1rem;
+    }
+}
+
+hr {
+    border: 0.1rem solid #50e3c2;
+    margin: 1rem 0;
 }
