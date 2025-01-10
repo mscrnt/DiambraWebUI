@@ -2,6 +2,15 @@
 
 from app.tools.filter_keys import get_filter_keys
 
+# Default training configuration
+DEFAULT_TRAINING_CONFIG = {
+    'game_id': "",
+    "num_envs": 1,
+    "total_timesteps": 2000000,
+    "autosave_freq": 100000,
+}
+
+
 # Dictionary of available games and their IDs
 AVAILABLE_GAMES = {
     "mvsc": "Marvel VS Capcom",
@@ -15,17 +24,23 @@ AVAILABLE_GAMES = {
     "soulclbr": "Soul Calibur",
 }
  
-# Game Settings
+# Global environment settings
 ENV_SETTINGS = {
-    'game_id': "",
-    'difficulty': 1,
-    'characters': (""), 
-    'action_space': "",
-    'step_ratio': 1,
-    'frame_shape': (84, 84, 1)
+    'difficulty': None,  # None U int, game-specific min and max values allowed
+    'characters': None,  # None U str U tuple of max three str
+    'outfits': 1,  # int, game-specific min and max values allowed
+    'action_space': "MULTI_DISCRETE",  # DISCRETE / MULTI_DISCRETE
+    'step_ratio': 6,  # int, [1, 6]
+    'n_players': 1,  # int, [1, 2]
+    'frame_shape': (84, 84, 1),  # tuple of three int (H, W, C)
+    'splash_screen': True,  # bool, True / False
+    'continue_game': 0.0,  # float, probability or number of continues
+    'show_final': False,  # bool, True / False
+    'role': None,  # None U Roles (P1, P2, None)
 }
 
-game_id = ENV_SETTINGS['game_id']
+
+game_id = DEFAULT_TRAINING_CONFIG['game_id']
 
 # Wrappers Settings
 WRAPPER_SETTINGS = {
@@ -76,14 +91,6 @@ DEFAULT_PATHS = {
     "save_path": "./checkpoints",
     "dimabra_path": "./dimabra",
 }
-
-# Default training configuration
-DEFAULT_TRAINING_CONFIG = {
-    "num_envs": 1,
-    "total_timesteps": 2000000,
-    "autosave_freq": 100000,
-}
-
 
 
 # Exported symbols

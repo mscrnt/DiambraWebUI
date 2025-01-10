@@ -1,0 +1,25 @@
+<!-- path: .app/templates/docker_start.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/styles.css"> <!-- Optional: Link to your app's CSS -->
+</head>
+<body>
+    <div class="container">
+        <h1>Docker Status</h1>
+        <p>{{ message }}</p>
+        <h2>Manual Steps</h2>
+        <ul>
+            <li><strong>Windows:</strong> Ensure Docker Desktop is running and WSL integration is enabled.</li>
+            <li><strong>Linux:</strong> Start Docker manually:<br>
+                <code>sudo service docker start</code></li>
+            <li><strong>macOS:</strong> Open Docker Desktop from your Applications folder.</li>
+        </ul>
+        <a href="/" class="btn btn-primary">Try Again</a>
+    </div>
+</body>
+</html>

@@ -196,5 +196,107 @@
         "description": "Displays a real-time view of the agent’s experience during training, offering insights into its interactions and behavior in the environment.",
         "example": "Example: Watch the agent navigate obstacles, collect rewards, and react to challenges in real time. This provides a visual representation of the agent’s progress.",
         "proTip": "Use the renderer to monitor training visually. Aesthetic enhancements like shaders can be applied here without affecting the agent’s performance."
+    },
+    "no_attack_buttons_combinations": {
+        "title": "Restrict Attack Buttons",
+        "description": "Disables attack button combinations, limiting actions to single-button presses. Useful for simplifying action spaces.",
+        "example": "Example: Set `no_attack_buttons_combinations = True` to ensure only single-button attacks are used.",
+        "proTip": "Use this wrapper to reduce complexity in environments with many button combinations."
+    },
+    "no_op_max": {
+        "title": "No-Action Steps After Reset",
+        "description": "Performs a random number of 'no-op' actions (up to the maximum specified) after an episode reset to introduce randomness.",
+        "example": "Example: Set `no_op_max = 6` to allow up to 6 no-op steps after resetting the environment.",
+        "proTip": "Useful for environments where random starting conditions improve exploration."
+    },
+    "frame_shape": {
+        "title": "Frame Reshaping (Deprecated)",
+        "description": "Resizes frames or converts them to grayscale. Consider using the `frame_shape` environment setting for improved performance.",
+        "example": "Example: Set `frame_shape = (128, 128, 1)` for grayscale frames resized to 128x128.",
+        "proTip": "Use for optimizing input dimensions. Replace with engine-side settings where possible for better performance."
+    },
+    "stack_frames": {
+        "title": "Stack Frames",
+        "description": "Combines the latest N frames into a single observation along the depth dimension, providing temporal context to the agent.",
+        "example": "Example: Set `stack_frames = 4` to stack the last 4 frames.",
+        "proTip": "Use in dynamic environments where context from previous frames is critical for decision-making."
+    },
+    "dilation": {
+        "title": "Frame Stacking Dilation",
+        "description": "Determines the interval at which frames are stacked, skipping N-1 frames between each stack.",
+        "example": "Example: Set `dilation = 2` to stack every second frame.",
+        "proTip": "Combine with `stack_frames` for efficient frame stacking in high-FPS environments."
+    },
+    "add_last_action": {
+        "title": "Add Last Action to Observation",
+        "description": "Includes the last performed action in the observation space, helping the agent learn dependencies between actions and outcomes.",
+        "example": "Example: Set `add_last_action = True` to add the last action to observations.",
+        "proTip": "Activating this wrapper is required for the `Stack Actions` wrapper."
+    },
+    "stack_actions": {
+        "title": "Stack Actions",
+        "description": "Stacks the last N actions into the observation space, creating a MultiDiscrete space with N elements.",
+        "example": "Example: Set `stack_actions = 12` to stack the last 12 actions.",
+        "proTip": "Requires `add_last_action = True` to work. Use for agents that benefit from a history of past actions."
+    },
+    "scale": {
+        "title": "Scale Observation",
+        "description": "Normalizes observations to be within [0, 1]. Handles various data types like Box, Discrete, and MultiDiscrete spaces.",
+        "example": "Example: Set `scale = True` to activate observation scaling.",
+        "proTip": "Use with `exclude_image_scaling` and `process_discrete_binary` for fine-grained control over scaling."
+    },
+    "exclude_image_scaling": {
+        "title": "Exclude Frame Scaling",
+        "description": "Prevents scaling from being applied to image-based observations like game frames.",
+        "example": "Example: Set `exclude_image_scaling = True` to skip scaling frames.",
+        "proTip": "Useful in environments where frame data should remain in its original form."
+    },
+    "process_discrete_binary": {
+        "title": "Process Binary Observations",
+        "description": "Transforms binary Discrete observations into MultiBinary spaces using one-hot encoding.",
+        "example": "Example: Set `process_discrete_binary = True` to one-hot encode binary Discrete observations.",
+        "proTip": "Use when binary spaces need encoding for compatibility with the agent."
+    },
+    "role_relative": {
+        "title": "Role-Relative Observation",
+        "description": "Renames observation keys to reflect the agent’s role, standardizing observations across roles.",
+        "example": "Example: Set `role_relative = True` to rename keys like P1 and P2 to 'own' and 'opp'.",
+        "proTip": "Simplifies training in multi-agent scenarios by aligning observation structures."
+    },
+    "flatten": {
+        "title": "Flatten Observation",
+        "description": "Converts nested dictionaries in observations into flat structures with concatenated keys.",
+        "example": "Example: Set `flatten = True` to flatten keys like `obs['P1']['key']` into `obs['P1_key']`.",
+        "proTip": "Combine with `filter_keys` to focus on specific observation elements."
+    },
+    "filter_keys": {
+        "title": "Filter Observation Keys",
+        "description": "Defines a subset of observation keys to retain, removing unnecessary elements.",
+        "example": "Example: Set `filter_keys = ['stage', 'P1_health']` to retain only specific keys.",
+        "proTip": "Requires `flatten = True` to work. Use to streamline observation data."
+    },
+    "repeat_action": {
+        "title": "Repeat Actions",
+        "description": "Repeats the last action for N steps, simulating extended action durations.",
+        "example": "Example: Set `repeat_action = 4` to repeat actions for 4 steps.",
+        "proTip": "Requires `step_ratio = 1`. Useful for environments where repeated actions are common."
+    },
+    "normalize_reward": {
+        "title": "Normalize Rewards",
+        "description": "Scales rewards based on a normalization factor and the health bar range of the game.",
+        "example": "Example: Set `normalize_reward = True` and `normalization_factor = 0.5` for scaled rewards.",
+        "proTip": "Improves reward consistency across different games or scenarios."
+    },
+    "clip_reward": {
+        "title": "Clip Rewards",
+        "description": "Applies a sign function to rewards, reducing their magnitude to +1, 0, or -1.",
+        "example": "Example: Set `clip_reward = True` to enable reward clipping.",
+        "proTip": "Useful for simplifying reward structures in environments with high variability."
+    },
+    "wrapper-settings": {
+        "title": "Diambra Wrappers",
+        "description": "DIAMBRA Arena includes a variety of built-in wrappers designed to enhance training and gameplay. These wrappers cater to diverse use cases and provide templates for creating custom solutions.",
+        "example": "Example: Enable `no_op_max` to introduce random delays after resets, or use `stack_frames` to add temporal context to observations.",
+        "proTip": "This program is optimized so you can't make a wrong choice. Feel free to experiment and find what works best for your setup!"
     }
 }

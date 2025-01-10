@@ -442,8 +442,8 @@ function initializeBatchSizeDropdown() {
                 batchSizeSelect.appendChild(option);
             });
 
-            // Select the largest valid batch size by default
-            batchSizeSelect.value = validBatchSizes[validBatchSizes.length - 1];
+            // Select the second to highest batch size by default
+            batchSizeSelect.value = validBatchSizes[validBatchSizes.length - 2];
             console.log(`Default selected batch size: ${batchSizeSelect.value}`);
         } else {
             console.warn("No valid batch sizes available for the given n_steps and num_envs.");

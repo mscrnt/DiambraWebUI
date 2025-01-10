@@ -259,3 +259,16 @@ h2 {
     margin-right: 0.5rem;
     transform: scale(1.2);
 }
+
+/* Use the following CSS to style for #training-settings */
+/* style="flex: 2; max-width: 50%; overflow-y: auto; max-height: 80vh; border-right: 1px solid #f8e71c; padding-right: 20px; */
+#training-settings {
+    flex: 2;
+    max-width: 50%;
+    overflow-y: auto;
+    max-height: 75vh;
+    border: 1px solid #ccc; /* Adds a full border around the container */
+    border-radius: 8px; /* Optional: Rounds the corners */
+    padding: 1rem; /* Adds padding inside the container */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional: Adds a subtle shadow for a modern look */
+}

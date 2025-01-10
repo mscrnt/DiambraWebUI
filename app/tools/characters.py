@@ -1,4 +1,4 @@
-# characters.py
+# path: .app/tools/characters.py
 
 available_characters = {
     "mvsc": [

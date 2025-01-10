@@ -1,0 +1,34 @@
+<!-- path: .app/templates/docker_help.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/styles.css"> <!-- Optional: Link to your app's CSS -->
+</head>
+<body>
+    <div class="container">
+        <h1>Docker Help</h1>
+        <p>{{ message }}</p>
+        <h2>Installation Instructions</h2>
+        <ul>
+            <li><strong>Linux:</strong> Follow the <a href="https://docs.docker.com/engine/install/">Docker Engine Install Guide</a>.</li>
+            <li><strong>Windows:</strong> Download and install <a href="https://www.docker.com/products/docker-desktop">Docker Desktop</a>. Make sure WSL integration is enabled.</li>
+            <li><strong>macOS:</strong> Download and install <a href="https://www.docker.com/products/docker-desktop">Docker Desktop</a>.</li>
+        </ul>
+        <h2>Post-Installation Steps</h2>
+        <ul>
+            <li>Ensure your user is added to the Docker group (Linux only):<br>
+                <code>sudo usermod -aG docker $USER</code><br>
+                Log out and log back in after running this command.</li>
+            <li>Verify the installation:<br>
+                <code>docker --version</code><br>
+                <code>docker run hello-world</code></li>
+        </ul>
+        <p>If you encounter any issues, refer to the <a href="https://docs.docker.com/">official Docker documentation</a>.</p>
+        <a href="/" class="btn btn-primary">Try Again</a>
+    </div>
+</body>
+</html>
