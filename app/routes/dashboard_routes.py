@@ -147,5 +147,24 @@ def create_dashboard_blueprint(training_manager, app_logger):
         except Exception as e:
             logger.error(f"Error updating game environment: {e}")
             return jsonify({"error": str(e)}), 500
+        
+    @dashboard_blueprint.route("/get_characters/<game_id>", methods=["GET"])
+    def get_characters(game_id):
+        """
+        Fetch characters and game type for the given game ID.
+        """
+        try:
+            game_data = get_game_info(game_id)
+            if not game_data:
+                return jsonify({"error": "Game not found"}), 404
+
+            return jsonify({
+                "gameType": game_data.get("game_type"),
+                "characters": game_data.get("characters"),
+            }), 200
+        except Exception as e:
+            logger.error(f"Error fetching characters for {game_id}: {e}")
+            return jsonify({"error": str(e)}), 500
+
 
     return dashboard_blueprint

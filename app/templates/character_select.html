@@ -1,0 +1,12 @@
+<!-- path: .app/templates/character_select.html -->
+
+<div id="character-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <span class="close" onclick="toggleCharacterModal(false)">&times;</span>
+        <h3>Select Character(s)</h3>
+        <p id="selection-instructions" style="margin-bottom: 1rem;"></p>
+        <div id="character-list"></div>
+        <div id="selection-order" style="margin-top: 1rem; font-size: 0.9rem; color: #888;"></div>
+        <button id="confirm-character-selection" onclick="confirmCharacterSelection()" disabled>Confirm</button>
+    </div>
+</div>

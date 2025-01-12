@@ -281,3 +281,138 @@ hr {
     border: 0.1rem solid #50e3c2;
     margin: 1rem 0;
 }
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8); /* Dark overlay with transparency */
+    display: none; /* Hidden by default */
+    justify-content: center; /* Centering for flex layout */
+    align-items: center; /* Centering for flex layout */
+    z-index: 1000;
+    backdrop-filter: blur(4px); /* Adds a retro blur effect */
+}
+
+
+.modal-content {
+    background: #111; /* Dark retro background */
+    color: #f8e71c; /* Bright yellow text */
+    padding: 2rem;
+    border: 0.2rem solid #50e3c2; /* Bright green border */
+    border-radius: 0; /* No rounded corners for retro effect */
+    width: 90%; /* Responsive design for smaller screens */
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.7); /* Retro shadow effect */
+    text-align: center;
+    font-family: 'Press Start 2P', cursive, sans-serif; /* Retro font */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5); /* Semi-transparent dark overlay */
+    z-index: 999;
+}
+
+.close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 1.5rem;
+    color: #50e3c2; /* Green close button */
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #f8e71c; /* Yellow hover for close button */
+}
+
+.modal-content h3 {
+    color: #f8e71c; /* Yellow header text */
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+}
+
+.modal-content button {
+    background: #50e3c2; /* Green button background */
+    color: #111; /* Dark text on button */
+    font-family: 'Press Start 2P', cursive, sans-serif;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    font-size: 1rem;
+    text-transform: uppercase;
+    box-shadow: 0 0.3rem 0.6rem rgba(0, 0, 0, 0.5);
+    transition: all 0.3s;
+}
+
+.modal-content button:hover {
+    background: #f8e71c; /* Yellow hover background */
+    color: #111; /* Keep dark text */
+}
+
+#character-list {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr); /* Exactly 5 items per row */
+    gap: 0.5rem; /* Space between items */
+    width: 100%;
+    max-height: 15rem;
+    overflow-y: auto; /* Enable scrolling if the content exceeds height */
+    padding: 0.5rem; /* Add padding for spacing */
+}
+
+
+#character-list label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #222;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #f8e71c; /* Yellow label text */
+}
+
+#character-list input {
+    margin-right: 0.5rem;
+    transform: scale(1.2); /* Slightly larger inputs */
+}
+
+#character-list input {
+    transform: scale(1.2); /* Slightly larger inputs */
+}
+
+#character-list label:hover {
+    background: #333;
+}
+
+#confirm-character-selection {
+    margin-top: 1rem;
+    padding: 0.8rem 1.5rem;
+    background: #50e3c2; /* Green button background */
+    color: #111; /* Dark text on button */
+    font-family: 'Press Start 2P', cursive, sans-serif;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    text-transform: uppercase;
+    box-shadow: 0 0.3rem 0.6rem rgba(0, 0, 0, 0.5);
+    transition: all 0.3s;
+}
+
+#confirm-character-selection:disabled {
+    background: #ccc;
+    color: #777;
+    cursor: not-allowed;
+    box-shadow: none;
+}

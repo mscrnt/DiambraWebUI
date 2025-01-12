@@ -587,6 +587,13 @@ function initializeFilterKeysDropdown() {
 
 async function initializeGameSelectListener(gameId) {
     try {
+        // Clear the selected characters input
+        const characterInput = document.getElementById("env-setting-characters");
+        if (characterInput) {
+            characterInput.value = ""; // Clear the value
+        }
+
+        // Fetch the updated environment settings
         const response = await fetch("/update_game_environment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -628,7 +635,7 @@ async function initializeGameSelectListener(gameId) {
                         });
                     } else {
                         console.warn(`Expected an array for ${key}, but got:`, value);
-                    }                    
+                    }
                 } else {
                     // Handle non-dropdown fields
                     console.log(`Setting value for key: ${key}`, { value });
@@ -648,7 +655,134 @@ async function initializeGameSelectListener(gameId) {
     }
 }
 
+async function initializeCharacterSelectListener() {
+    const characterInput = document.getElementById("env-setting-characters");
+    if (!characterInput) return;
 
+    characterInput.addEventListener("click", async () => {
+        const gameSelect = document.getElementById("game-select");
+        const gameId = gameSelect.value;
+
+        if (!gameId) {
+            alert("Please select a game first.");
+            return;
+        }
+
+        const response = await fetch(`/get_characters/${gameId}`);
+        if (!response.ok) {
+            console.error("Failed to fetch character data.");
+            return;
+        }
+
+        const { gameType, characters } = await response.json();
+        gameSelect.dataset.gameType = gameType; // Store the gameType in a data attribute
+        openCharacterModal(gameType, characters);
+        toggleCharacterModal(true); // Open the modal
+
+    });
+}
+
+function openCharacterModal(gameType, characters) {
+    const modal = document.getElementById("character-modal");
+    const characterList = document.getElementById("character-list");
+    const instructions = document.getElementById("selection-instructions");
+    const confirmButton = document.getElementById("confirm-character-selection");
+    const selectionOrder = document.getElementById("selection-order");
+
+    if (!modal || !characterList || !instructions || !confirmButton || !selectionOrder) {
+        console.error("Modal or required elements not found in DOM.");
+        return;
+    }
+
+    const maxSelection = gameType === "double" ? 2 : 1;
+
+    // Update the instructions
+    instructions.textContent = `Please select ${maxSelection} character${maxSelection > 1 ? 's' : ''}.`;
+
+    // Populate the character list
+    characterList.innerHTML = characters
+        .map(character =>
+            `<label>
+                <input type="${gameType === "double" ? "checkbox" : "radio"}" 
+                       name="character" value="${character}" 
+                       onchange="handleCharacterSelection('${gameType}')">
+                ${character}
+            </label>`
+        )
+        .join("<br>");
+
+    // Clear previous selections and disable the confirm button
+    confirmButton.disabled = true;
+    selectionOrder.textContent = '';
+
+    modal.style.display = "block";
+}
+
+
+function handleCharacterSelection(gameType) {
+    const maxSelection = gameType === "double" ? 2 : 1;
+    const selected = Array.from(document.querySelectorAll("input[name='character']:checked"));
+    const allInputs = document.querySelectorAll("input[name='character']");
+    const confirmButton = document.getElementById("confirm-character-selection");
+    const selectionOrder = document.getElementById("selection-order");
+
+    // Update the confirm button state
+    confirmButton.disabled = selected.length !== maxSelection;
+
+    // Disable additional checkboxes if the max selection is reached
+    allInputs.forEach(input => {
+        if (!input.checked && selected.length >= maxSelection) {
+            input.disabled = true;
+        } else {
+            input.disabled = false;
+        }
+    });
+
+    // Display the order of selected characters
+    if (gameType === "double") {
+        selectionOrder.textContent = selected.length
+            ? `1st: ${selected[0]?.value || ''}${selected[1] ? `, 2nd: ${selected[1]?.value}` : ''}`
+            : '';
+    } else {
+        selectionOrder.textContent = selected.length ? `Selected: ${selected[0]?.value}` : '';
+    }
+}
+
+
+function toggleCharacterModal(show) {
+    const modal = document.getElementById("character-modal");
+
+    if (!modal) {
+        console.error("Character modal not found in DOM.");
+        return;
+    }
+
+    if (show) {
+        modal.style.display = "flex"; // Ensure centering by setting flex
+    } else {
+        modal.style.display = "none"; // Hide modal
+    }
+}
+
+function confirmCharacterSelection() {
+    const selected = Array.from(document.querySelectorAll("input[name='character']:checked"))
+        .map(input => input.value);
+
+    const gameType = document.getElementById("game-select").dataset.gameType; // Fetch game type from data attribute
+    const characterInput = document.getElementById("env-setting-characters");
+
+    if (!characterInput) return;
+
+    const maxSelection = gameType === "double" ? 2 : 1;
+
+    if (selected.length !== maxSelection) {
+        alert(`Please select exactly ${maxSelection} character${maxSelection > 1 ? 's' : ''}.`);
+        return;
+    }
+
+    characterInput.value = selected.join(", ");
+    toggleCharacterModal(false);
+}
 
 
 function initializeListenersForTrainingDashboard() {
@@ -673,6 +807,7 @@ function initializeListenersForTrainingDashboard() {
     }
 
     // Initialize additional components
+    initializeCharacterSelectListener();
     initializeConfigManager();
     initializeTooltips();
     initializeLogStreaming();
