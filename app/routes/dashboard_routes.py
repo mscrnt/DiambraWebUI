@@ -11,6 +11,7 @@ from app import (
 )
 from app.tools.utils import callback_blueprint  # Ensure this is correctly defined elsewhere
 from app.tools.filter_keys import get_filter_keys
+from app.tools.game_info import get_game_info
 import importlib
 import inspect
 
@@ -49,7 +50,7 @@ def create_dashboard_blueprint(training_manager, app_logger):
     wrapper_blueprints = dynamic_load_blueprints("app_wrappers")
     callback_blueprints = dynamic_load_blueprints("app_callbacks")
 
-    @dashboard_blueprint.route("/dashboard/training", methods=["GET"])
+    @dashboard_blueprint.route("/dashboard/training", methods=["GET"])  
     def training_dashboard():
         """
         Render the main training dashboard.
@@ -78,8 +79,8 @@ def create_dashboard_blueprint(training_manager, app_logger):
             hyperparameters=DEFAULT_HYPERPARAMETERS,
             training_config=DEFAULT_TRAINING_CONFIG,
             paths=DEFAULT_PATHS,
-            env_settings=ENV_SETTINGS,  # Added env_settings
-            wrapper_settings=WRAPPER_SETTINGS,  # Added wrapper_settings
+            env_settings=ENV_SETTINGS,
+            wrapper_settings=WRAPPER_SETTINGS,
             wrappers=wrappers,
             callbacks=callbacks,
             available_games=AVAILABLE_GAMES
@@ -101,7 +102,50 @@ def create_dashboard_blueprint(training_manager, app_logger):
 
         return jsonify({"message": "Game ID updated", "filterKeys": filter_keys}), 200
 
+    @dashboard_blueprint.route("/update_game_environment", methods=["POST"])
+    def update_game_environment():
+        """
+        Updates game-specific environment settings based on the selected game ID.
+        """
+        try:
+            data = request.get_json()
+            game_id = data.get("game_id")
 
+            if not game_id or game_id not in AVAILABLE_GAMES:
+                logger.error(f"Invalid game ID received: {game_id}")
+                return jsonify({"error": "Invalid game ID"}), 400
 
-    
+            game_settings = get_game_info(game_id)
+            if not game_settings:
+                logger.error(f"Game ID not found: {game_id}")
+                return jsonify({"error": "Game not found"}), 404
+
+            # Extract relevant fields for the environment settings
+            resolution = game_settings.get("resolution", (0, 0, 0))
+            frame_shape = [
+                {"value": f"{resolution[0]},{resolution[1]},{resolution[2]}", "label": f"Original ({resolution[0]}, {resolution[1]}, {resolution[2]})"},
+                {"value": "124,124,1", "label": "Small (124, 124, 1)"},
+                {"value": "84,84,1", "label": "Very Small (84, 84, 1)"},
+            ]
+
+            logger.info(f"Generated frame_shape for {game_id}: {frame_shape}")
+
+            env_settings = {
+                "difficulty": list(range(1, game_settings.get("max_difficulty", 8) + 1)),
+                "frame_shape": frame_shape,
+                "outfits": [f"Outfit {i}" for i in range(1, game_settings.get("max_outfits", 1) + 1)],
+                "num_characters": game_settings.get("num_characters"),
+                "num_stages": game_settings.get("num_stages"),
+                "moves": game_settings.get("moves"),
+                "attacks": game_settings.get("attacks"),
+                "n_players": list(range(1, game_settings.get("max_players", 2) + 1)),
+            }
+
+            logger.info(f"Final env_settings for {game_id}: {env_settings}")
+            return jsonify({"env_settings": env_settings}), 200
+
+        except Exception as e:
+            logger.error(f"Error updating game environment: {e}")
+            return jsonify({"error": str(e)}), 500
+
     return dashboard_blueprint

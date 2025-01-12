@@ -555,16 +555,16 @@ async function initializeShaderToggles() {
 function toggleDropdown(dropdownId) {
     const dropdown = document.getElementById(dropdownId);
     if (!dropdown) return;
-
     dropdown.style.display = dropdown.style.display === "none" ? "block" : "none";
 }
 
 // Update the label of the dropdown button based on selected options
 function updateFilterKeysLabel() {
     const dropdownButton = document.querySelector(".dropdown-toggle");
+    if (!dropdownButton) return;
+
     const checkboxes = document.querySelectorAll("#filter-keys-dropdown input[type='checkbox']");
     const selectedCount = Array.from(checkboxes).filter((checkbox) => checkbox.checked).length;
-
     dropdownButton.innerHTML = `Selected (${selectedCount}) <i class="fas fa-chevron-down"></i>`;
 }
 
@@ -573,10 +573,8 @@ function initializeFilterKeysDropdown() {
     const dropdown = document.getElementById("filter-keys-dropdown");
     if (!dropdown) return;
 
-    // Update the label initially based on pre-selected checkboxes
     updateFilterKeysLabel();
 
-    // Close the dropdown menu when clicking outside
     document.addEventListener("click", (event) => {
         const dropdownButton = document.querySelector(".dropdown-toggle");
         if (dropdown.style.display === "block" && !dropdown.contains(event.target) && !dropdownButton.contains(event.target)) {
@@ -587,119 +585,101 @@ function initializeFilterKeysDropdown() {
     console.log("Filter Keys dropdown initialized.");
 }
 
-function initializeGameSelectListener() {
-    const gameSelect = document.getElementById("game-select");
-    const selectAllCheckbox = document.getElementById("select-all-keys");
+async function initializeGameSelectListener(gameId) {
+    try {
+        const response = await fetch("/update_game_environment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ game_id: gameId }),
+        });
 
-    if (!gameSelect || !selectAllCheckbox) {
-        console.error("Game select dropdown or Select All checkbox not found.");
-        return;
-    }
+        if (response.ok) {
+            const { env_settings } = await response.json();
+            console.log(`Environment settings updated for game: ${gameId}`, env_settings);
 
-    gameSelect.addEventListener("change", async (event) => {
-        const gameId = event.target.value;
+            // Iterate over the keys in the environment settings
+            Object.entries(env_settings).forEach(([key, value]) => {
+                const fieldId = `env-setting-${key}`; // Use consistent ID naming
+                console.log(`Processing key: ${key}`, { fieldId, value });
 
-        try {
-            const response = await fetch("/update-game-id", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ game_id: gameId }),
-            });
-
-            if (response.ok) {
-                const { filterKeys } = await response.json();
-                console.log(`Game updated to ${gameId}, filter keys updated:`, filterKeys);
-
-                // Update the filter keys dropdown dynamically
-                const filterKeysDropdown = document.getElementById("filter-keys-dropdown");
-                if (filterKeysDropdown) {
-                    filterKeysDropdown.innerHTML = filterKeys
-                        .map(
-                            (key) => `
-                            <div class="dropdown-item" style="border-bottom: 1px solid #ccc; padding: 5px 0;">
-                                <label style="display: flex; align-items: center; gap: 10px;">
-                                    <input 
-                                        type="checkbox" 
-                                        class="filter-key-checkbox"
-                                        name="wrapper_settings[filter_keys][]" 
-                                        value="${key}" 
-                                        checked 
-                                    >
-                                    ${key}
-                                </label>
-                            </div>
-                        `
-                        )
-                        .join("");
-
-                    // Automatically check all boxes
-                    document
-                        .querySelectorAll(".filter-key-checkbox")
-                        .forEach((checkbox) => (checkbox.checked = true));
-
-                    // Reapply Select All checkbox logic
-                    updateSelectAllState();
+                // Locate the field in the DOM
+                const field = document.getElementById(fieldId);
+                if (!field) {
+                    console.warn(`No matching field found in DOM for key: ${key} with fieldId: ${fieldId}`);
+                    return;
                 }
-            } else {
-                console.error("Failed to update game ID.");
-            }
-        } catch (error) {
-            console.error("Error updating game ID:", error);
+
+                // Populate dropdown fields (select elements)
+                if (field.tagName === "SELECT") {
+                    console.log(`Populating dropdown for key: ${key}`);
+                    field.innerHTML = ""; // Clear existing options
+
+                    if (Array.isArray(value)) {
+                        value.forEach((option) => {
+                            const optionElement = document.createElement("option");
+                            if (typeof option === "object" && option.value && option.label) {
+                                optionElement.value = option.value;
+                                optionElement.textContent = option.label;
+                            } else {
+                                optionElement.value = option;
+                                optionElement.textContent = option;
+                            }
+                            field.appendChild(optionElement);
+                        });
+                    } else {
+                        console.warn(`Expected an array for ${key}, but got:`, value);
+                    }                    
+                } else {
+                    // Handle non-dropdown fields
+                    console.log(`Setting value for key: ${key}`, { value });
+                    if (field.value !== undefined) {
+                        field.value = value || "";
+                    } else {
+                        console.warn(`Field for key ${key} does not support value assignment.`);
+                    }
+                }
+            });
+        } else {
+            const error = await response.json();
+            console.error("Failed to fetch environment settings:", error);
         }
-    });
-
-    // Logic for the Select All checkbox
-    selectAllCheckbox.addEventListener("change", () => {
-        const isChecked = selectAllCheckbox.checked;
-        document
-            .querySelectorAll(".filter-key-checkbox")
-            .forEach((checkbox) => (checkbox.checked = isChecked));
-        updateFilterKeysLabel();
-    });
-
-    // Update Select All checkbox state based on individual selections
-    function updateSelectAllState() {
-        const allCheckboxes = document.querySelectorAll(".filter-key-checkbox");
-        const allChecked = Array.from(allCheckboxes).every((checkbox) => checkbox.checked);
-        selectAllCheckbox.checked = allChecked;
+    } catch (error) {
+        console.error("Error updating game values:", error);
     }
-
-    // Add listener to update Select All checkbox state
-    document.addEventListener("change", (event) => {
-        if (event.target.classList.contains("filter-key-checkbox")) {
-            updateSelectAllState();
-            updateFilterKeysLabel();
-        }
-    });
-
-    console.log("Game select listener initialized.");
 }
 
 
+
+
 function initializeListenersForTrainingDashboard() {
-    // Initialize configuration manager
+    const gameSelect = document.getElementById("game-select");
+
+    if (gameSelect) {
+        // Auto-select the first game if none is selected
+        if (!gameSelect.value) {
+            gameSelect.value = gameSelect.options[0]?.value;
+            console.log(`No game selected, defaulting to: ${gameSelect.value}`);
+            initializeGameSelectListener(gameSelect.value); // Populate environment settings for the default selection
+        }
+
+        // Remove any existing event listeners to prevent duplication
+        gameSelect.removeEventListener("change", handleGameChange);
+        gameSelect.addEventListener("change", handleGameChange);
+    }
+
+    async function handleGameChange(event) {
+        const gameId = event.target.value;
+        await initializeGameSelectListener(gameId);
+    }
+
+    // Initialize additional components
     initializeConfigManager();
-
-    // Initialize tooltips
     initializeTooltips();
-
-    // Initialize log streaming
     initializeLogStreaming();
-
-    // Initialize video feed
     initializeVideoFeed();
-
-    // Initialize batch size dropdown
     initializeBatchSizeDropdown();
-
-    // Initialize filter keys dropdown
-    initializeFilterKeysDropdown();    
-
-    // Initialize CRT shader toggle
+    initializeFilterKeysDropdown();
     initializeShaderToggles();
-
-    // Initialize game select dropdown listener
-    initializeGameSelectListener();
 
     console.log("Listeners for Training Dashboard initialized.");
 }

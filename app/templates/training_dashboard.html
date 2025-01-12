@@ -108,55 +108,95 @@
                     {% if key != "game_id" %}
                     <div class="grid-item">
                         <label>
+                            {% if key == "n_players" %}
+                            Players Select
+                            {% else %}
                             {{ key | replace("_", " ") | title }}
+                            {% endif %}
                             <i class="fas fa-info-circle tooltip-icon" onclick="openModal('{{ key }}')"></i>
-                            {% if key in ["difficulty", "outfits", "action_space", "frame_shape", "splash_screen", "show_final", "role", "n_players", "step_ratio"] %}
-                            <select name="env_settings[{{ key }}]" class="config-input">
-                                {% if key == "difficulty" %}
-                                <option value="None" {% if value == None %}selected{% endif %}>None</option>
-                                {% for level in range(1, 11) %}
-                                <option value="{{ level }}" {% if value == level %}selected{% endif %}>{{ level }}</option>
-                                {% endfor %}
-                                {% elif key == "outfits" %}
-                                <option value="1" {% if value == 1 %}selected{% endif %}>1</option>
-                                <option value="2" {% if value == 2 %}selected{% endif %}>2</option>
-                                <option value="3" {% if value == 3 %}selected{% endif %}>3</option>
-                                <option value="4" {% if value == 4 %}selected{% endif %}>4</option>
-                                {% elif key == "action_space" %}
+
+                            {% if key == "difficulty" %}
+                            <!-- Difficulty Dropdown -->
+                            <select name="env_settings[difficulty]" id="env-setting-difficulty" class="config-input">
+                                {% if env_settings.difficulty %}
+                                    {% for level in env_settings.difficulty %}
+                                    <option value="{{ level }}" {% if value == level %}selected{% endif %}>{{ level }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No difficulty levels available</option>
+                                {% endif %}
+                            </select>
+
+                            {% elif key == "frame_shape" %}
+                            <!-- Frame Shape Dropdown -->
+                            <select name="env_settings[frame_shape]" id="env-setting-frame_shape" class="config-input">
+                                {% if env_settings.frame_shape %}
+                                    {% for shape in env_settings.frame_shape %}
+                                    <option value="{{ shape.value }}" {% if value == shape.value %}selected{% endif %}>
+                                        {{ shape.label }}
+                                    </option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No frame shapes available</option>
+                                {% endif %}
+                            </select>
+                            
+                            
+
+                            {% elif key == "outfits" %}
+                            <!-- Outfits Dropdown -->
+                            <select name="env_settings[outfits]" id="env-setting-outfits" class="config-input">
+                                {% if env_settings.max_outfits %}
+                                    {% for outfit in range(1, env_settings.max_outfits + 1) %}
+                                    <option value="{{ outfit }}" {% if value == outfit %}selected{% endif %}>{{ outfit }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No outfits available</option>
+                                {% endif %}
+                            </select>
+
+                            
+                            {% elif key == "action_space" %}
+                            <select name="env_settings[action_space]" id="env-setting-action-space" class="config-input">
                                 <option value="DISCRETE" {% if value == "DISCRETE" %}selected{% endif %}>DISCRETE</option>
                                 <option value="MULTI_DISCRETE" {% if value == "MULTI_DISCRETE" %}selected{% endif %}>MULTI DISCRETE</option>
-                                {% elif key == "frame_shape" %}
-                                <option value="(84, 84, 1)" {% if value == "(84, 84, 1)" %}selected{% endif %}>(84, 84, 1)</option>
-                                <option value="(96, 96, 1)" {% if value == "(96, 96, 1)" %}selected{% endif %}>(96, 96, 1)</option>
-                                {% elif key == "splash_screen" or key == "show_final" %}
+                            </select>
+
+                            {% elif key == "splash_screen" or key == "show_final" %}
+                            <select name="env_settings[{{ key }}]" id="env-setting-{{ key }}" class="config-input">
                                 <option value="True" {% if value == True %}selected{% endif %}>True</option>
                                 <option value="False" {% if value == False %}selected{% endif %}>False</option>
-                                {% elif key == "role" %}
+                            </select>
+
+                            {% elif key == "role" %}
+                            <select name="env_settings[role]" id="env-setting-role" class="config-input">
                                 <option value="None" {% if value == None %}selected{% endif %}>None</option>
                                 <option value="P1" {% if value == "P1" %}selected{% endif %}>P1</option>
                                 <option value="P2" {% if value == "P2" %}selected{% endif %}>P2</option>
-                                {% elif key == "n_players" %}
-                                <option value="1" {% if value == 1 %}selected{% endif %}>1</option>
-                                <option value="2" {% if value == 2 %}selected{% endif %}>2</option>
-                                {% elif key == "step_ratio" %}
+                            </select>
+
+                            {% elif key == "n_players" %}
+                            <select name="env_settings[n_players]" id="env-setting-n-players" class="config-input">
+                                <option value="1" {% if value == 1 %}selected{% endif %}>Single Player</option>
+                                <option value="2" {% if value == 2 %}selected{% endif %}>Two Player</option>
+                            </select>
+
+                            {% elif key == "step_ratio" %}
+                            <select name="env_settings[step_ratio]" id="env-setting-step-ratio" class="config-input">
                                 {% for ratio in range(1, 7) %}
                                 <option value="{{ ratio }}" {% if value == ratio %}selected{% endif %}>{{ ratio }}</option>
                                 {% endfor %}
-                                {% endif %}
                             </select>
-                            {% elif key == "continue_game" %}
-                            <input 
-                                type="number" 
-                                name="env_settings[{{ key }}]" 
-                                value="{{ value }}" 
-                                min="0.0" 
-                                step="0.1" 
-                                class="config-input">
+                                               
                             {% else %}
                             <input 
-                                type="text" 
+                                type="{{ 'number' if key == 'continue_game' else 'text' }}" 
                                 name="env_settings[{{ key }}]" 
+                                id="env-setting-{{ key }}" 
                                 value="{{ value }}" 
+                                min="0.0"
+                                max="1.0"
+                                step="0.01"
                                 class="config-input">
                             {% endif %}
                         </label>
@@ -166,6 +206,7 @@
                 </div>
             </div>
             <hr>
+
 
 
             <!-- Wrapper Settings Section -->
