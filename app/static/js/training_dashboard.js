@@ -738,15 +738,18 @@ function handleCharacterSelection(gameType) {
         }
     });
 
-    // Display the order of selected characters
-    if (gameType === "double") {
-        selectionOrder.textContent = selected.length
-            ? `1st: ${selected[0]?.value || ''}${selected[1] ? `, 2nd: ${selected[1]?.value}` : ''}`
-            : '';
+    // Display the order of selected characters or placeholder
+    if (selected.length === 0) {
+        selectionOrder.textContent = "No characters selected yet.";
+    } else if (gameType === "double") {
+        selectionOrder.textContent = `1st: ${selected[0]?.value || ''}${
+            selected[1] ? `, 2nd: ${selected[1]?.value}` : ''
+        }`;
     } else {
-        selectionOrder.textContent = selected.length ? `Selected: ${selected[0]?.value}` : '';
+        selectionOrder.textContent = `Selected: ${selected[0]?.value}`;
     }
 }
+
 
 
 function toggleCharacterModal(show) {
