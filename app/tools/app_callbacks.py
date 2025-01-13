@@ -1,8 +1,8 @@
-# path: ./app_callbacks.py
+# path: .app/tools/app_callbacks.py
 
 from stable_baselines3.common.callbacks import BaseCallback
 from app.log_manager import LogManager
-from app.tools.utils import callback_blueprint as Blueprint
+from app.tools.utils import diambra_blueprint as Blueprint
 from diambra.arena.stable_baselines3.sb3_utils import AutoSave
 
 # Define the AutoSave blueprint with argument mapping

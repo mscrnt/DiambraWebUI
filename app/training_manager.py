@@ -3,13 +3,14 @@
 from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS
 from app.render_manager import RenderManager
 from app.log_manager import LogManager
-from app.tools.utils import callback_blueprint
+from app.tools.utils import diambra_blueprint as callback_blueprint
+from app.tools.utils import dynamic_load_blueprints
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import CallbackList
 from diambra.arena import load_settings_flat_dict, SpaceTypes
 from diambra.arena.stable_baselines3.make_sb3_env import make_sb3_env, EnvironmentSettings, WrappersSettings
-from diambra.arena.stable_baselines3.sb3_utils import linear_schedule, AutoSave
+from diambra.arena.stable_baselines3.sb3_utils import linear_schedule
 import threading
 import importlib
 import inspect
@@ -28,8 +29,8 @@ class TrainingManager:
         :param db_manager: Instance of the DBManager for database operations.
         """
         # Load blueprints dynamically
-        self.wrapper_blueprints = self.load_blueprints("app_wrappers")
-        self.callback_blueprints = self.load_blueprints("app_callbacks")
+        self.wrapper_blueprints = dynamic_load_blueprints("app.tools.app_wrappers")
+        self.callback_blueprints = dynamic_load_blueprints("app.tools.app_callbacks")
 
         # Initialize default configuration
         self.default_config = self.get_default_config(
@@ -56,6 +57,7 @@ class TrainingManager:
         self.callback_blueprints = {}
         self.callback_instances = []
         self.selected_wrappers = []
+        self.load_blueprints = dynamic_load_blueprints
         self.shader_settings = {
             "radial_distortion": False,
             "scanlines": False,
@@ -128,21 +130,6 @@ class TrainingManager:
             "enabled_callbacks": required_callbacks,
         }
 
-    @staticmethod
-    def load_blueprints(module_name):
-        """Dynamically load all blueprints from a given module."""
-        try:
-            module = importlib.import_module(module_name)
-            blueprints = {
-                name: obj for name, obj in inspect.getmembers(module)
-                if isinstance(obj, callback_blueprint)
-            }
-            logger.info(f"Loaded blueprints from {module_name}: {list(blueprints.keys())}")
-            return blueprints
-        except Exception as e:
-            logger.error(f"Error loading blueprints from {module_name}: {e}")
-            return {}
-
     def stop_training(self):
         """Stop training and rendering gracefully."""
         logger.info("Stopping training...")
@@ -172,8 +159,8 @@ class TrainingManager:
         logger.debug("Initializing training with config", extra={"config": self.config})
 
         # Load blueprints dynamically
-        self.wrapper_blueprints = self.load_blueprints("app_wrappers")
-        self.callback_blueprints = self.load_blueprints("app_callbacks")
+        self.wrapper_blueprints = dynamic_load_blueprints("app.tools.app_wrappers")
+        self.callback_blueprints = dynamic_load_blueprints("app.tools.app_callbacks")
 
         logger.debug(f"Loaded wrapper blueprints: {list(self.wrapper_blueprints.keys())}")
         logger.debug(f"Loaded callback blueprints: {list(self.callback_blueprints.keys())}")

@@ -1,15 +1,17 @@
-# path: ./utils.py
+# path: .app/tools/utils.py
 
 from app.log_manager import LogManager
 from abc import ABC
 from inspect import signature
+import importlib
+import inspect
 
 
 # Initialize a logger specific to this module
 logger = LogManager("utils")
 
 
-class callback_blueprint(ABC):
+class diambra_blueprint(ABC):
     """
     A universal blueprint for defining components like callbacks and wrappers.
     """
@@ -72,3 +74,20 @@ class callback_blueprint(ABC):
         # Debug: Log final parameters passed to the component
         logger.debug(f"Creating {self.component_class.__name__} with parameters: {valid_params}")
         return self.component_class(**valid_params)
+    
+def dynamic_load_blueprints(module_name):
+    """
+    Dynamically load all blueprint instances from a module.
+    """
+    try:
+        # Import module based on the Python package path, not the file system
+        module = importlib.import_module(module_name)
+        blueprints = {
+            name: obj for name, obj in inspect.getmembers(module)
+            if isinstance(obj, diambra_blueprint)  # Ensure it's a diambra_blueprint instance
+        }
+        logger.debug(f"Loaded blueprints from {module_name}: {list(blueprints.keys())}")
+        return blueprints
+    except Exception as e:
+        logger.error(f"Error loading blueprints from {module_name}: {e}")
+        return {}

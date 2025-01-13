@@ -9,16 +9,14 @@ from app import (
     WRAPPER_SETTINGS,
     AVAILABLE_GAMES
 )
-from app.tools.utils import callback_blueprint  # Ensure this is correctly defined elsewhere
+from app.tools.utils import dynamic_load_blueprints
 from app.tools.filter_keys import get_filter_keys
 from app.tools.game_info import get_game_info
-import importlib
-import inspect
 
 
 def create_dashboard_blueprint(training_manager, app_logger):  
     """
-    Create the dashboard blueprint and integrate the training_manager and logger.
+    Create the dashboard blueprint and integrate the training_manager and logger. 
 
     :param training_manager: Global TrainingManager instance to interact with.
     :param app_logger: Global logger instance to be shared across blueprints.
@@ -30,25 +28,12 @@ def create_dashboard_blueprint(training_manager, app_logger):
     # Initialize the dashboard blueprint
     dashboard_blueprint = Blueprint("dashboard", __name__)
 
-    def dynamic_load_blueprints(module_name):
-        """
-        Dynamically load all blueprint instances from a module.
-        """
-        try:
-            module = importlib.import_module(module_name)
-            blueprints = {
-                name: obj for name, obj in inspect.getmembers(module)
-                if isinstance(obj, callback_blueprint)  # Ensure only callback_blueprint instances are loaded
-            }
-            logger.debug(f"Loaded blueprints from {module_name}: {list(blueprints.keys())}")
-            return blueprints
-        except Exception as e:
-            logger.error(f"Error loading blueprints from {module_name}: {e}")
-            return {}
+
 
     # Load blueprints for wrappers and callbacks dynamically
-    wrapper_blueprints = dynamic_load_blueprints("app_wrappers")
-    callback_blueprints = dynamic_load_blueprints("app_callbacks")
+    wrapper_blueprints = dynamic_load_blueprints("app.tools.app_wrappers")
+    callback_blueprints = dynamic_load_blueprints("app.tools.app_callbacks")
+
 
     @dashboard_blueprint.route("/dashboard/training", methods=["GET"])  
     def training_dashboard():
