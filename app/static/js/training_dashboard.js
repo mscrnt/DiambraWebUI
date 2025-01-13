@@ -563,27 +563,62 @@ function updateFilterKeysLabel() {
     const dropdownButton = document.querySelector(".dropdown-toggle");
     if (!dropdownButton) return;
 
-    const checkboxes = document.querySelectorAll("#filter-keys-dropdown input[type='checkbox']");
+    const checkboxes = document.querySelectorAll("#filter-keys-dropdown input.filter-key-checkbox");
     const selectedCount = Array.from(checkboxes).filter((checkbox) => checkbox.checked).length;
     dropdownButton.innerHTML = `Selected (${selectedCount}) <i class="fas fa-chevron-down"></i>`;
 }
 
-// Initialize the dropdown and update label on page load
+// Function to toggle all filter keys
+function toggleSelectAllKeys() {
+    const selectAllCheckbox = document.getElementById("select-all-keys");
+    const checkboxes = document.querySelectorAll("#filter-keys-dropdown input.filter-key-checkbox");
+
+    if (!selectAllCheckbox || !checkboxes.length) return;
+
+    // Set the checked state of all checkboxes to match the "Select All" checkbox
+    checkboxes.forEach((checkbox) => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+
+    // Update the label after toggling
+    updateFilterKeysLabel();
+}
+
+// Initialize the dropdown and automatically select all keys
 function initializeFilterKeysDropdown() {
     const dropdown = document.getElementById("filter-keys-dropdown");
     if (!dropdown) return;
 
+    // Automatically select all keys
+    const checkboxes = dropdown.querySelectorAll("input.filter-key-checkbox");
+    checkboxes.forEach((checkbox) => {
+        checkbox.checked = true; // Auto-select all keys
+    });
+
+    // Update the "Select All" checkbox to reflect the state
+    const selectAllCheckbox = document.getElementById("select-all-keys");
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = true; // Ensure "Select All" is also checked
+    }
+
+    // Update the dropdown label to reflect the selected count
     updateFilterKeysLabel();
 
+    // Close dropdown if clicked outside
     document.addEventListener("click", (event) => {
         const dropdownButton = document.querySelector(".dropdown-toggle");
-        if (dropdown.style.display === "block" && !dropdown.contains(event.target) && !dropdownButton.contains(event.target)) {
+        if (
+            dropdown.style.display === "block" &&
+            !dropdown.contains(event.target) &&
+            !dropdownButton.contains(event.target)
+        ) {
             dropdown.style.display = "none";
         }
     });
 
     console.log("Filter Keys dropdown initialized.");
 }
+
 
 async function initializeGameSelectListener(gameId) {
     try {
@@ -601,10 +636,56 @@ async function initializeGameSelectListener(gameId) {
         });
 
         if (response.ok) {
-            const { env_settings } = await response.json();
+            const { env_settings, filter_keys } = await response.json(); // Include filter_keys from backend
             console.log(`Environment settings updated for game: ${gameId}`, env_settings);
 
-            // Iterate over the keys in the environment settings
+            // Update filter keys dropdown
+            const filterKeysDropdown = document.getElementById("filter-keys-dropdown");
+            if (filterKeysDropdown) {
+                console.log("Updating filter keys dropdown...");
+                filterKeysDropdown.innerHTML = ""; // Clear existing options
+
+                // Add a "Select All" checkbox
+                const selectAllOption = document.createElement("div");
+                selectAllOption.className = "dropdown-item";
+                selectAllOption.innerHTML = `
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="select-all-keys" onchange="toggleSelectAllKeys()">
+                        Select All
+                    </label>
+                `;
+                filterKeysDropdown.appendChild(selectAllOption);
+
+                // Populate new filter keys and auto-select all
+                filter_keys.forEach((key) => {
+                    const option = document.createElement("div");
+                    option.className = "dropdown-item";
+                    option.innerHTML = `
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" class="filter-key-checkbox" name="wrapper_settings[filter_keys][]" value="${key}" checked onchange="updateFilterKeysLabel()">
+                            ${key}
+                        </label>
+                    `;
+                    filterKeysDropdown.appendChild(option);
+                });
+
+                // Automatically select all keys
+                const checkboxes = filterKeysDropdown.querySelectorAll("input.filter-key-checkbox");
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = true;
+                });
+
+                // Set "Select All" checkbox to checked
+                const selectAllCheckbox = document.getElementById("select-all-keys");
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = true;
+                }
+
+                // Update filter keys label
+                updateFilterKeysLabel();
+            }
+
+            // Iterate over the remaining environment settings
             Object.entries(env_settings).forEach(([key, value]) => {
                 const fieldId = `env-setting-${key}`; // Use consistent ID naming
                 console.log(`Processing key: ${key}`, { fieldId, value });
@@ -654,6 +735,7 @@ async function initializeGameSelectListener(gameId) {
         console.error("Error updating game values:", error);
     }
 }
+
 
 async function initializeCharacterSelectListener() {
     const characterInput = document.getElementById("env-setting-characters");
