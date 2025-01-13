@@ -120,19 +120,37 @@ def create_dashboard_blueprint(training_manager, app_logger):
                 logger.error(f"Game ID not found: {game_id}")
                 return jsonify({"error": "Game not found"}), 404
 
-            # Extract relevant fields for the environment settings
+            # Extract original resolution
             resolution = game_settings.get("resolution", (0, 0, 0))
-            frame_shape = [
-                {"value": f"{resolution[0]},{resolution[1]},{resolution[2]}", "label": f"Original ({resolution[0]}, {resolution[1]}, {resolution[2]})"},
-                {"value": "124,124,1", "label": "Small (124, 124, 1)"},
-                {"value": "84,84,1", "label": "Very Small (84, 84, 1)"},
+            original_height, original_width, color_channels = resolution
+
+            # Generate frame shape options
+            frame_shapes = [
+                {"value": f"(0, 0, 0)", "label": f"Original ({resolution[0]}, {resolution[1]}, {resolution[2]})"},
+                {
+                    "value": f"{original_height // 2}, {original_width // 2}, 0",
+                    "label": f"Small RGB ({original_height // 2}, {original_width // 2}, 0)",
+                },
+                {
+                    "value": f"{original_height // 4}, {original_width // 4}, 0",
+                    "label": f"Very Small RGB ({original_height // 4}, {original_width // 4}, 0)",
+                },
+                {
+                    "value": f"{original_height // 2}, {original_width // 2}, 1",
+                    "label": f"Small Grayscale ({original_height // 2}, {original_width // 2}, 1)",
+                },
+                {
+                    "value": f"{original_height // 4}, {original_width // 4}, 1",
+                    "label": f"Very Small Grayscale ({original_height // 4}, {original_width // 4}, 1)",
+                },
             ]
 
-            logger.info(f"Generated frame_shape for {game_id}: {frame_shape}")
+            logger.info(f"Generated frame_shapes for {game_id}: {frame_shapes}")
 
+            # Prepare environment settings
             env_settings = {
                 "difficulty": list(range(1, game_settings.get("max_difficulty", 8) + 1)),
-                "frame_shape": frame_shape,
+                "frame_shape": frame_shapes,
                 "outfits": [f"Outfit {i}" for i in range(1, game_settings.get("max_outfits", 1) + 1)],
                 "num_characters": game_settings.get("num_characters"),
                 "num_stages": game_settings.get("num_stages"),
@@ -147,6 +165,7 @@ def create_dashboard_blueprint(training_manager, app_logger):
         except Exception as e:
             logger.error(f"Error updating game environment: {e}")
             return jsonify({"error": str(e)}), 500
+
         
     @dashboard_blueprint.route("/get_characters/<game_id>", methods=["GET"])
     def get_characters(game_id):
