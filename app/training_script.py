@@ -12,16 +12,23 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
     """Validate and convert settings to their correct types and ranges."""
     env_types_and_defaults = {
         "frame_shape": {"type": tuple, "default": (0, 0, 0)},
-        # Skip validation of `action_space`
         "n_players": {"type": int, "range": [1, 2]},
         "step_ratio": {"type": int, "range": [1, 6]},
         "splash_screen": {"type": bool, "default": True},
         "difficulty": {"type": int, "default": None},
         "continue_game": {"type": float, "range": [0.0, 1.0]},
         "show_final": {"type": bool, "default": False},
-        # Handle `role` conversion from str to int or None
         "role": {"type": (int, type(None)), "allowed": {"P1": 0, "P2": 1, "None": None}, "default": None},
-        "characters": {"type": (str, tuple), "default": None},
+        "characters": {
+            "type": (str, tuple),
+            "default": None,
+            "allowed": [
+                "Chun-Li", "Ryu", "Zangief", "Morrigan", "Captain Commando", "Megaman", "Strider Hiryu",
+                "Spider Man", "Jin", "Captain America", "Venom", "Hulk", "Gambit", "War Machine", "Wolverine",
+                "Roll", "Onslaught", "Alt-Venom", "Alt-Hulk", "Alt-War Machine", "Shadow Lady", "Alt-Morrigan",
+                None
+            ],
+        },
         "outfits": {"type": int, "default": 1},
     }
 
@@ -61,7 +68,7 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
         "tensorboard_log": {"type": (str, None), "default": None},
         "policy_kwargs": {"type": (dict, None), "default": None},
         "verbose": {"type": int, "range": [0, 2]},
-        "seed": {"type": int, "default": None},  # Ensure seed is an integer
+        "seed": {"type": int, "default": None},
         "device": {"type": (str, "torch.device"), "default": "auto"},
     }
 
@@ -71,7 +78,25 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
             if value is None or value == "":
                 return rules.get("default")
 
-            # Handle special conversion for `role`
+            # Special handling for `characters`
+            if key == "characters":
+                if isinstance(value, str):
+                    if "," in value:
+                        value = tuple(map(str.strip, value.split(",")))
+                        print(f"Converted 'characters' field to tuple: {value}")
+                    else:
+                        value = value.strip()
+                if isinstance(value, tuple):
+                    if len(value) > 3:
+                        raise ValueError(f"'characters' tuple cannot have more than 3 elements: {value}")
+                    for character in value:
+                        if character not in rules["allowed"]:
+                            raise ValueError(f"Invalid character '{character}' in 'characters'. Allowed: {rules['allowed']}")
+                elif isinstance(value, str) and value not in rules["allowed"]:
+                    raise ValueError(f"Invalid character '{value}' in 'characters'. Allowed: {rules['allowed']}")
+                return value
+
+            # Handle `role` conversion
             if key == "role":
                 allowed_roles = rules["allowed"]
                 if value not in allowed_roles:
@@ -97,23 +122,14 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
                 except ValueError as e:
                     raise ValueError(f"Invalid format for 'frame_shape'. Expected 'H,W,C', got: '{value}'. Error: {e}")
 
-            # Special handling for `seed`
-            elif key == "seed":
-                try:
-                    value = int(value)
-                    print(f"Converted field '{key}' to int: {value}")
-                except ValueError:
-                    raise ValueError(f"Invalid seed value: {value}. Seed must be an integer.")
-
             # General type validation and conversion
-            else:
-                allowed_types = rules["type"] if isinstance(rules["type"], tuple) else (rules["type"],)
-                if not isinstance(value, allowed_types):
-                    if float in allowed_types or int in allowed_types:
-                        value = float(value) if "." in str(value) else int(value)
-                    else:
-                        raise TypeError(f"Invalid type for '{key}': {value} (expected {allowed_types}).")
-                print(f"Converted field '{key}' to {type(value).__name__}: {value}")
+            allowed_types = rules["type"] if isinstance(rules["type"], tuple) else (rules["type"],)
+            if not isinstance(value, allowed_types):
+                if float in allowed_types or int in allowed_types:
+                    value = float(value) if "." in str(value) else int(value)
+                else:
+                    raise TypeError(f"Invalid type for '{key}': {value} (expected {allowed_types}).")
+            print(f"Converted field '{key}' to {type(value).__name__}: {value}")
 
             # Range validation
             if "range" in rules:
@@ -126,9 +142,9 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
             print(f"Error converting field '{key}' with value '{value}': {e}")
             raise
 
-    # Validate and convert all other fields except action_space
+    # Validate and convert all fields except action_space
     for key, rules in env_types_and_defaults.items():
-        if key in env_settings and key != "action_space":  # Skip action_space validation
+        if key in env_settings and key != "action_space":
             print(f"Checking env_settings[{key}]: {env_settings[key]}")
             env_settings[key] = convert_value(key, env_settings[key], rules)
 
@@ -143,8 +159,6 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
             hyperparameters[key] = convert_value(key, hyperparameters[key], rules)
 
     return env_settings, wrapper_settings, hyperparameters
-
-
 
 
 def main():

@@ -101,7 +101,12 @@ def reassemble_and_extract(chunk_dir, chunk_extension=".dat", output_dir=None):
     if output_dir is None:
         output_dir = os.path.join(chunk_dir, "extracted_files")
     
-    # Step 1: Reassemble the chunks into a single archive
+    existing_zip_files = [f for f in os.listdir(chunk_dir) if f.endswith(".zip")]
+    if existing_zip_files:
+        print("Zip files already exist in the directory. Extraction skipped.")
+        return
+
+    # Reassemble the chunks into a single archive
     chunk_files = sorted(
         [f for f in os.listdir(chunk_dir) if f.endswith(chunk_extension)]
     )
@@ -115,13 +120,13 @@ def reassemble_and_extract(chunk_dir, chunk_extension=".dat", output_dir=None):
             with open(os.path.join(chunk_dir, chunk_file), "rb") as chunk:
                 archive.write(chunk.read())
 
-    # Step 2: Extract the reassembled archive into the output directory
+    # Extract the reassembled archive into the output directory
     os.makedirs(output_dir, exist_ok=True)
     with zipfile.ZipFile(archive_path, "r") as archive:
         archive.extractall(output_dir)
     print(f"Files extracted to {output_dir}")
 
-    # Step 3: Move the extracted `.zip` files to the root of the roms directory
+    # Move the extracted `.zip` files to the root of the roms directory
     zip_files = [
         os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.endswith(".zip")
     ]
@@ -130,12 +135,11 @@ def reassemble_and_extract(chunk_dir, chunk_extension=".dat", output_dir=None):
         os.rename(zip_file, new_location)
     print(f"Moved zip files to {chunk_dir}")
 
-    # Optional: Remove the temporary extracted_files directory
+    # Remove the temporary extracted_files directory
     if os.path.exists(output_dir):
-        os.rmdir(output_dir)  # Only removes if the directory is empty
+        os.rmdir(output_dir)  #
 
-
-
+# Check for and extract files if needed
 roms_path = DEFAULT_PATHS['roms_path']
 reassemble_and_extract(roms_path, chunk_extension=".dat")
 

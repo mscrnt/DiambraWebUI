@@ -113,7 +113,7 @@ def create_dashboard_blueprint(training_manager, app_logger):
             resolution = game_settings.get("resolution", (0, 0, 0))
             frame_shapes = [
                 {"value": "0, 0, 0", "label": f"Original ({resolution[0]}, {resolution[1]}, {resolution[2]})"},
-                {"value": f"{resolution[0] // 2}, {resolution[1] // 2}, 3", "label": f"Small RGB ({resolution[0] // 2}, {resolution[1] // 2}, 3)"},
+                {"value": f"{resolution[0] // 2}, {resolution[1] // 2}, 0", "label": f"Small RGB ({resolution[0] // 2}, {resolution[1] // 2}, 0)"},
                 {"value": f"{resolution[0] // 4}, {resolution[1] // 4}, 1", "label": f"Very Small Grayscale ({resolution[0] // 4}, {resolution[1] // 4}, 1)"},
             ]
 
