@@ -2,6 +2,7 @@
 
 from app.tools.filter_keys import get_filter_keys
 import os
+import zipfile
 
 # Get the root directory of the application
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +24,6 @@ DEFAULT_TRAINING_CONFIG = {
     "autosave_freq": 100000,
 }
 
-
 # Dictionary of available games and their IDs
 AVAILABLE_GAMES = {
     "mvsc": "Marvel VS Capcom",
@@ -36,22 +36,21 @@ AVAILABLE_GAMES = {
     "xmvsf": "X-Men VS Street Fighter",
     "soulclbr": "Soul Calibur",
 }
- 
+
 # Global environment settings
 ENV_SETTINGS = {
-    'difficulty': None,  # None U int, game-specific min and max values allowed
-    'characters': None,  # None U str U tuple of max three str
-    'outfits': 1,  # int, game-specific min and max values allowed
-    'action_space': "MULTI_DISCRETE",  # DISCRETE / MULTI_DISCRETE
-    'step_ratio': 6,  # int, [1, 6]
-    'n_players': 1,  # int, [1, 2]
-    'frame_shape': (84, 84, 1),  # tuple of three int (H, W, C)
-    'splash_screen': True,  # bool, True / False
-    'continue_game': 0.0,  # float, probability or number of continues
-    'show_final': False,  # bool, True / False
-    'role': None,  # None U Roles (P1, P2, None)
+    'difficulty': None,
+    'characters': None,
+    'outfits': 1,
+    'action_space': "MULTI_DISCRETE",
+    'step_ratio': 6,
+    'n_players': 1,
+    'frame_shape': (84, 84, 1),
+    'splash_screen': True,
+    'continue_game': 0.0,
+    'show_final': False,
+    'role': None,
 }
-
 
 game_id = DEFAULT_TRAINING_CONFIG['game_id']
 
@@ -70,7 +69,7 @@ WRAPPER_SETTINGS = {
     'process_discrete_binary': True,
     'role_relative': True,
     'add_last_action': True,
-    'filter_keys': get_filter_keys(game_id, True)
+    'filter_keys': get_filter_keys(game_id, True),
 }
 
 # Default hyperparameters
@@ -89,15 +88,56 @@ DEFAULT_HYPERPARAMETERS = {
     "max_grad_norm": 0.5,
     "normalize_advantage": True,
     "seed": 42,
-    "device": "auto", 
-    "pi_net": "64,64",  
+    "device": "auto",
+    "pi_net": "64,64",
     "vf_net": None,
     "clip_range_vf_start": None,
     "clip_range_vf_end": None,
     "target_kl": None,
 }
- 
 
+# Function to reassemble and extract files
+def reassemble_and_extract(chunk_dir, chunk_extension=".dat", output_dir=None):
+    if output_dir is None:
+        output_dir = os.path.join(chunk_dir, "extracted_files")
+    
+    # Step 1: Reassemble the chunks into a single archive
+    chunk_files = sorted(
+        [f for f in os.listdir(chunk_dir) if f.endswith(chunk_extension)]
+    )
+    if not chunk_files:
+        print(f"No files with extension '{chunk_extension}' found in {chunk_dir}")
+        return
+
+    archive_path = os.path.join(chunk_dir, "reassembled.zip")
+    with open(archive_path, "wb") as archive:
+        for chunk_file in chunk_files:
+            with open(os.path.join(chunk_dir, chunk_file), "rb") as chunk:
+                archive.write(chunk.read())
+
+    # Step 2: Extract the reassembled archive into the output directory
+    os.makedirs(output_dir, exist_ok=True)
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        archive.extractall(output_dir)
+    print(f"Files extracted to {output_dir}")
+
+    # Step 3: Move the extracted `.zip` files to the root of the roms directory
+    zip_files = [
+        os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.endswith(".zip")
+    ]
+    for zip_file in zip_files:
+        new_location = os.path.join(chunk_dir, os.path.basename(zip_file))
+        os.rename(zip_file, new_location)
+    print(f"Moved zip files to {chunk_dir}")
+
+    # Optional: Remove the temporary extracted_files directory
+    if os.path.exists(output_dir):
+        os.rmdir(output_dir)  # Only removes if the directory is empty
+
+
+
+roms_path = DEFAULT_PATHS['roms_path']
+reassemble_and_extract(roms_path, chunk_extension=".dat")
 
 # Exported symbols
 __all__ = [
