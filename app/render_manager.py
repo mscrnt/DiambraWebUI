@@ -1,16 +1,16 @@
 # path: ./render_manager.py
 
 import torch
-from app.log_manager import LogManager
 import threading
 import time
 from copy import deepcopy
 import queue
 import cv2
 import numpy as np
+import logging
 
 # Initialize a logger specific to this module
-logger = LogManager("RenderMan")
+logger = logging.getLogger(__name__)
 
 frame_queue = queue.Queue(maxsize=50)
 

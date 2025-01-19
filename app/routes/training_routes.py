@@ -11,12 +11,12 @@ from app import (
     AVAILABLE_GAMES
 )
 from app.tools.filter_keys import get_filter_keys
-from app.tools.utils import start_diambra_engine
 import os
 import subprocess
 import tempfile
 import json
 import gc
+from app.tools.utils import save_to_pickle
 
 enable_crt_shader = False
 
@@ -58,23 +58,18 @@ def create_training_blueprint(training_manager, app_logger, ):
             "enabled_callbacks": config.get("enabled_callbacks", []),
         }
         return {key: safe_serialize(value) for key, value in serialized_config.items()}
-
+    
     @training_blueprint.route("/start_training", methods=["POST"])
     def start_training():
-        """
-        Start the training process by preparing the training configuration and 
-        launching the DIAMBRA CLI command to execute the training script.
-        """
-        global monitoring_thread
-        global monitoring_active
-        gc.collect()
+        """Start the training process."""
+        global monitoring_thread, monitoring_active
+        gc.collect()  # Run garbage collection to free up memory
 
         with training_lock:
             if training_manager.is_training_active():
                 return jsonify({"status": "running", "message": "Training is already in progress."})
 
             try:
-                # Retrieve and validate the incoming training data
                 data = request.get_json() or {}
                 logger.debug(f"Received training data: {json.dumps(data, indent=4)}")
 
@@ -86,39 +81,49 @@ def create_training_blueprint(training_manager, app_logger, ):
                 if num_envs < 1:
                     return jsonify({"status": "error", "message": "Number of environments must be at least 1."}), 400
 
-                # Update active training configuration
-                training_manager.update_config({
+                updated_config = {
                     "training_config": data.get("training_config", {}),
                     "hyperparameters": data.get("hyperparameters", {}),
                     "wrapper_settings": data.get("wrapper_settings", {}),
-                    "env_settings": data.get("env_settings", {}),  # Add env_settings
-                    "enabled_wrappers": data.get("wrappers", training_manager.get_active_config().get("enabled_wrappers", [])),
-                    "enabled_callbacks": data.get("callbacks", training_manager.get_active_config().get("enabled_callbacks", [])),
-                })
+                    "env_settings": data.get("env_settings", {}),
+                    "enabled_wrappers": data.get(
+                        "wrappers", training_manager.get_active_config().get("enabled_wrappers", [])
+                    ),
+                    "enabled_callbacks": data.get(
+                        "callbacks", training_manager.get_active_config().get("enabled_callbacks", [])
+                    ),
+                }
 
-                # Prepare the configuration file
+                logger.debug("Updating training configuration with:")
+                logger.debug(json.dumps(updated_config, indent=4))
+                training_manager.update_config(updated_config)
+
                 active_config = training_manager.get_active_config()
-                temp_config_file_path = os.path.join(os.getcwd(), "tmp", f"tmpfile_{os.getpid()}.json")
-                os.makedirs(os.path.dirname(temp_config_file_path), exist_ok=True)
+                logger.info("Training configuration successfully updated.")
+                logger.info(json.dumps(active_config, indent=4))
 
-                with open(temp_config_file_path, 'w') as temp_config_file:
-                    json.dump(active_config, temp_config_file, indent=4)
-                logger.info(f"Temporary configuration file created: {temp_config_file_path}")
+                # Specify the custom tmp folder in the project
+                temp_dir = os.path.join(os.getcwd(), "tmp")
+                pickle_path = save_to_pickle(training_manager, "training_manager_snapshot.pkl", custom_dir=temp_dir)
+                logger.info(f"TrainingManager state saved to {pickle_path}")
 
-                # Construct the DIAMBRA CLI command
                 python_executable = os.path.join(os.path.dirname(os.getcwd()), "venv", "Scripts", "python.exe")
                 script_path = os.path.join(os.getcwd(), "training_script.py")
                 command = [
-                    "diambra", "run",
-                    "-s", str(num_envs),
-                    "--path.roms", roms_path,
+                    "diambra",
+                    "run",
+                    "-s",
+                    str(num_envs),
+                    "--path.roms",
+                    roms_path,
                     "--interactive=false",
                     "--env.preallocateport",
-                    python_executable, script_path, temp_config_file_path
+                    python_executable,
+                    script_path,
+                    pickle_path,  # Pass the pickle file path to the script
                 ]
                 logger.info(f"DIAMBRA CLI command: {' '.join(command)}")
 
-                # Define the log monitoring function
                 def monitor_logs():
                     logger.info("Starting DIAMBRA CLI log monitoring...")
                     try:
@@ -128,7 +133,7 @@ def create_training_blueprint(training_manager, app_logger, ):
                             stderr=subprocess.STDOUT,
                             text=True,
                             bufsize=1,
-                            encoding="utf-8"
+                            encoding="utf-8",
                         ) as process:
                             for line in process.stdout:
                                 if line.strip():
@@ -138,13 +143,7 @@ def create_training_blueprint(training_manager, app_logger, ):
                                 logger.error(f"DIAMBRA CLI exited with return code {process.returncode}.")
                     except Exception as e:
                         logger.error(f"Error monitoring logs: {str(e)}")
-                    finally:
-                        # Clean up the temporary configuration file
-                        if os.path.exists(temp_config_file_path):
-                            os.remove(temp_config_file_path)
-                            logger.info(f"Temporary configuration file deleted: {temp_config_file_path}")
 
-                # Start the log monitoring in a separate thread
                 monitoring_active = True
                 monitoring_thread = threading.Thread(target=monitor_logs, daemon=True)
                 monitoring_thread.start()
@@ -154,7 +153,6 @@ def create_training_blueprint(training_manager, app_logger, ):
             except Exception as e:
                 logger.error(f"Error during training setup: {str(e)}", exc_info=True)
                 return jsonify({"status": "error", "message": f"Failed to start training: {str(e)}"}), 500
-
 
 
     def stop_containers(container_names):

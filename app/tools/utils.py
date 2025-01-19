@@ -5,13 +5,10 @@ from abc import ABC
 from inspect import signature
 import importlib
 import inspect
-import subprocess
+import pickle
 import os
-from app import DEFAULT_PATHS
-import threading
-import time
-import grpc
-
+import tempfile
+from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG, DEFAULT_PATHS, ENV_SETTINGS, WRAPPER_SETTINGS, AVAILABLE_GAMES
 
 # Initialize a logger specific to this module
 
@@ -67,9 +64,13 @@ class diambra_blueprint(ABC):
                 if config_key in config and arg_name not in params:
                     params[arg_name] = config[config_key]
 
+        # Convert numeric parameters to integers where necessary
+        for key, value in params.items():
+            if key in {"check_freq", "num_envs"} and isinstance(value, str) and value.isdigit():
+                params[key] = int(value)
+
         # Add the `env` argument for wrappers
-        if self.component_type == "wrapper":
-            self.logger.debug(f"Checking env argument for wrapper {self.name}")
+        if self.component_type == "wrapper" and "env" not in params:
             if env is None:
                 self.logger.error(f"The 'env' argument is missing for wrapper {self.name}.")
                 raise ValueError(f"The 'env' argument is required for wrapper {self.name}.")
@@ -79,13 +80,16 @@ class diambra_blueprint(ABC):
         component_sig = signature(self.component_class)
         valid_params = {k: v for k, v in params.items() if k in component_sig.parameters}
 
-        # Debug: Log final parameters passed to the component
         self.logger.debug(f"Creating {self.component_class.__name__} with parameters: {valid_params}")
-        return self.component_class(**valid_params)
+        try:
+            return self.component_class(**valid_params)
+        except Exception as e:
+            self.logger.error(f"Error instantiating {self.name}: {e}", exc_info=True)
+            raise
     
 def dynamic_load_blueprints(module_name):
     """
-    Dynamically load all blueprint instances from a module.
+    Dynamically load all blueprint instances from a module with detailed logging.
     """
     logger = app_logger.__class__("dynamic_load_blueprints")
     try:
@@ -95,13 +99,134 @@ def dynamic_load_blueprints(module_name):
             name: obj for name, obj in inspect.getmembers(module)
             if isinstance(obj, diambra_blueprint)  # Ensure it's a diambra_blueprint instance
         }
-        logger.debug(f"Loaded blueprints from {module_name}: {list(blueprints.keys())}")
+        if blueprints:
+            logger.info(f"Loaded blueprints from {module_name}: {list(blueprints.keys())}")
+        else:
+            logger.warning(f"No blueprints found in module: {module_name}")
         return blueprints
     except Exception as e:
-        logger.error(f"Error loading blueprints from {module_name}: {e}")
+        logger.error(f"Error loading blueprints from {module_name}: {e}", exc_info=True)
         return {}
 
 
+def save_to_pickle(obj, filename, custom_dir=None):
+    """Save an object to a pickle file in a specified directory."""
+    logger = app_logger.__class__("save_to_pickle")
+    try:
+        # Use the custom directory if provided, otherwise fall back to system temp directory
+        temp_dir = custom_dir or tempfile.gettempdir()
+        os.makedirs(temp_dir, exist_ok=True)  # Ensure the directory exists
+        file_path = os.path.join(temp_dir, filename)
+        with open(file_path, "wb") as f:
+            pickle.dump(obj, f)
+        logger.info(f"Object saved to pickle file: {file_path}")
+        return file_path
+    except Exception as e:
+        logger.error(f"Failed to save object to {filename}: {e}")
+        raise ValueError(f"Failed to save object to {filename}: {e}")
+    
+
+def apply_wrappers(env, selected_wrappers, blueprints):
+    """
+    Apply dynamically selected wrappers to the environment based on blueprints.
+
+    :param env: The base environment to wrap.
+    :param selected_wrappers: List of wrapper names to apply.
+    :param blueprints: Dictionary of available wrapper blueprints.
+    :return: Wrapped environment.
+    """
+    logger = LogManager("apply_wrappers")
+    logger.info(f"Applying wrappers: {selected_wrappers}")
+
+    for wrapper_name in selected_wrappers:
+        blueprint = blueprints.get(wrapper_name)
+        if blueprint:
+            try:
+                # Map arguments dynamically from the blueprint's argument map
+                params = {"env": env}
+                instance = blueprint.create_instance(**params)
+                env = instance
+                logger.info(f"Applied wrapper: {wrapper_name}")
+            except Exception as e:
+                logger.error(f"Failed to apply wrapper {wrapper_name}: {e}")
+        else:
+            logger.warning(f"Wrapper blueprint '{wrapper_name}' not found. Skipping.")
+    return env
+
+
+def initialize_callbacks(training_manager):
+    logger = LogManager("initialize_callbacks")
+    logger.info("Initializing callbacks...")
+    callback_instances = []
+
+    fallback_config = {
+        **DEFAULT_TRAINING_CONFIG,
+        **DEFAULT_HYPERPARAMETERS,
+        **DEFAULT_PATHS,
+        **ENV_SETTINGS,
+        **WRAPPER_SETTINGS,
+    }
+
+    enabled_callbacks = training_manager.active_config["config"].get("enabled_callbacks", [])
+    logger.debug(f"Enabled callbacks: {enabled_callbacks}")
+
+    for cb_name in enabled_callbacks:
+        blueprint = next(
+            (bp for key, bp in training_manager.callback_blueprints.items()
+             if key == cb_name or bp.name == cb_name),
+            None
+        )
+
+        if blueprint:
+            logger.debug(f"Found blueprint for callback '{cb_name}': {blueprint}")
+
+            try:
+                params = {
+                    key: (
+                        training_manager.active_config["config"]["training_config"].get(value)
+                        or fallback_config.get(value)
+                    )
+                    for key, value in blueprint.arg_map.items()
+                    if value in training_manager.active_config["config"]["training_config"]
+                    or value in fallback_config
+                }
+
+                # Convert numeric parameters where needed
+                for param_key, param_value in params.items():
+                    if param_key in {"check_freq", "num_envs"}:
+                        try:
+                            params[param_key] = int(param_value)
+                        except ValueError as e:
+                            logger.error(f"Invalid value for '{param_key}': {param_value}. Must be an integer. Error: {e}")
+                            raise
+
+                # Log resolved parameters
+                logger.debug(f"Initializing callback '{cb_name}' with parameters: {params}")
+                instance = blueprint.create_instance(**params)
+                callback_instances.append(instance)
+                logger.info(f"Initialized callback: {cb_name} with params: {params}")
+
+            except Exception as e:
+                logger.error(f"Failed to initialize callback '{cb_name}': {e}", exc_info=True)
+        else:
+            logger.warning(f"Callback blueprint '{cb_name}' not found. Skipping.")
+
+    training_manager.callback_instances = callback_instances
+    logger.info("Callbacks initialized successfully.")
+
+
+def load_from_pickle(file_path):
+    """Load an object from a pickle file."""
+    logger = app_logger.__class__("load_from_pickle")
+    try:
+        with open(file_path, "rb") as f:
+            obj = pickle.load(f)
+        logger.info(f"Object loaded from pickle file: {file_path}")
+        return obj
+    except Exception as e:
+        logger.error(f"Failed to load object from {file_path}: {e}")
+        raise RuntimeError(f"Failed to load object from {file_path}: {e}")
+    
 def filter_config(config, allowed_keys):
     """
     Filter out keys that are not part of the allowed keys.
@@ -110,125 +235,3 @@ def filter_config(config, allowed_keys):
     :return: Filtered dictionary.
     """
     return {key: config[key] for key in config if key in allowed_keys}
-
-
-def is_diambra_engine_running(container_name="diambra_engine"):
-    """
-    Check if the DIAMBRA Engine container is running.
-
-    :param container_name: Name of the Docker container to check.
-    :return: True if the container is running, False otherwise.
-    """
-    logger = app_logger.__class__("is_diambra_engine_running")
-    try:
-        logger.info(f"Checking if container '{container_name}' is running...")
-        result = subprocess.run(
-            ["docker", "ps", "--filter", f"name={container_name}", "--format", "{{.Names}}"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        if result.returncode != 0:
-            logger.error(f"Error checking container status: {result.stderr.strip()}")
-            return False
-        running_containers = result.stdout.strip().split("\n")
-        is_running = container_name in running_containers
-        logger.info(f"Container '{container_name}' running: {is_running}")
-        return is_running
-    except Exception as e:
-        logger.error(f"Error checking DIAMBRA Engine container: {e}")
-        return False
-    
-
-def is_grpc_ready(address="localhost", port=50051, timeout=30):
-    """
-    Check if the gRPC server at the specified address is ready.
-
-    :param address: The gRPC server address (default: "localhost").
-    :param port: The gRPC server port (default: 50051).
-    :param timeout: Time in seconds to wait for readiness.
-    :return: True if the server is ready, False otherwise.
-    """
-    logger = app_logger.__class__("is_grpc_ready")
-    grpc_address = f"{address}:{port}"
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            channel = grpc.insecure_channel(grpc_address)
-            grpc.channel_ready_future(channel).result(timeout=2)
-            logger.info(f"gRPC server at {grpc_address} is ready.")
-            return True
-        except grpc.FutureTimeoutError:
-            logger.info(f"gRPC server at {grpc_address} is not ready. Retrying...")
-            time.sleep(1)
-    logger.error(f"gRPC server at {grpc_address} did not become ready in time.")
-    return False
-
-
-def start_diambra_engine(roms_path=None, container_name="diambra_engine", grpc_port=50051, host_port=None):
-    """
-    Start a DIAMBRA Engine using Docker, map the gRPC port, and ensure its server is ready.
-
-    :param roms_path: Path to the ROMs directory. Defaults to the value in DEFAULT_PATHS.
-    :param container_name: Name to assign to the Docker container.
-    :param grpc_port: Port inside the container for the gRPC server (default: 50051).
-    :param host_port: Port on the host to map to the container's gRPC port.
-    :return: True if the DIAMBRA Engine starts successfully and its server is ready, False otherwise.
-    """
-    logger = app_logger.__class__("start_diambra_engine")
-    roms_path = roms_path or DEFAULT_PATHS["roms_path"]
-    credentials_path = os.path.expanduser(DEFAULT_PATHS["credentials_file"])
-    host_port = host_port or grpc_port  # Default to grpc_port for rendering engine
-
-    # Ensure credentials and ROMs directories exist
-    try:
-        os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
-        os.makedirs(roms_path, exist_ok=True)
-        if not os.path.exists(credentials_path):
-            with open(credentials_path, "w") as cred_file:
-                cred_file.write("")  # Create an empty credentials file
-    except Exception as e:
-        logger.error(f"Error preparing credentials or ROMs directory: {e}")
-        return False
-
-    # Check if the container is already running
-    if is_diambra_engine_running(container_name):
-        logger.info(f"DIAMBRA Engine container '{container_name}' is already running.")
-        return True
-
-    def run_engine():
-        try:
-            logger.info(
-                f"Starting DIAMBRA Engine container '{container_name}' with host port {host_port} mapped to container port {grpc_port}..."
-            )
-            result = subprocess.run(
-                [
-                    "docker", "run", "--rm", "-d", "--name", container_name,
-                    "-v", f"{credentials_path}:/tmp/.diambra/credentials",
-                    "-v", f"{roms_path}:/opt/diambraArena/roms",
-                    "-p", f"{host_port}:{grpc_port}",  # Explicit port mapping
-                    "docker.io/diambra/engine:latest"
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            if result.returncode != 0:
-                logger.error(f"Error starting container '{container_name}': {result.stderr.strip()}")
-                return
-            logger.info(f"Container '{container_name}' started successfully with gRPC port mapped to {host_port}.")
-        except Exception as e:
-            logger.error(f"Unexpected error starting DIAMBRA Engine: {e}")
-
-    # Start the Docker process in a separate thread
-    engine_thread = threading.Thread(target=run_engine, daemon=True)
-    engine_thread.start()
-
-    # Wait for gRPC server readiness
-    grpc_address = f"localhost:{host_port}"  # Use the mapped host port for readiness checks
-    if not is_grpc_ready(address="localhost", port=host_port):
-        logger.error(f"DIAMBRA Engine gRPC server '{grpc_address}' did not become ready in time.")
-        return False
-
-    logger.info(f"DIAMBRA Engine gRPC server '{grpc_address}' is ready.")
-    return True

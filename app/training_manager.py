@@ -10,12 +10,9 @@ from diambra.arena import load_settings_flat_dict, SpaceTypes
 from diambra.arena.stable_baselines3.make_sb3_env import make_sb3_env, EnvironmentSettings, WrappersSettings
 from diambra.arena.stable_baselines3.sb3_utils import linear_schedule
 import threading
-
-
-
+import json
 
 logger = LogManager("TrainingManager")
-
 
 class TrainingManager:
     def __init__(self, config=None):
@@ -79,29 +76,98 @@ class TrainingManager:
         for key in self.shader_settings:
             self.shader_settings[key] = enable_all
 
+    def __getstate__(self):
+        """Prepare the state for pickling."""
+        state = self.__dict__.copy()
+        # Serialize callbacks for later reconstruction
+        state["serialized_callbacks"] = [
+            {
+                "name": blueprint.name,
+                "module": blueprint.component_class.__module__,
+                "class_name": blueprint.component_class.__name__,
+                "params": {
+                    **blueprint.default_params,
+                    **self.config.get("training_config", {}).get("callbacks_params", {}).get(blueprint.name, {})
+                }
+            }
+            for name, blueprint in self.callback_blueprints.items()
+            if name in self.config.get("enabled_callbacks", [])
+        ]
+        # Remove non-pickleable objects
+        state.pop("render_manager", None)
+        state.pop("model", None)
+        state.pop("env", None)
+        state.pop("training_active_event", None)
+        state.pop("model_updated_flag", None)
+        return state
+
+    def __setstate__(self, state):
+        """Restore the state from unpickling."""
+        self.__dict__.update(state)
+        self.render_manager = None
+        self.model = None
+        self.env = None
+        self.training_active_event = threading.Event()
+        self.training_active_event.clear()
+        self.model_updated_flag = threading.Event()
+        self.model_updated_flag.clear()
+
+        # Dynamically reload callback instances
+        self.callback_instances = []
+        for cb in self.config.get("serialized_callbacks", []):
+            blueprint = self.callback_blueprints.get(cb["name"])
+            if blueprint:
+                try:
+                    self.callback_instances.append(
+                        blueprint.create_instance(**cb["params"])
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to initialize callback {cb['name']}: {e}")
+
+
     def set_active_config(self, config):
         """Set the active configuration, ensuring all fields are properly updated."""
-        # Merge the new configuration with defaults to ensure completeness
-        self.active_config = {
-            "config": {
-                "training_config": {**self.default_config["training_config"], **config.get("training_config", {})},
-                "hyperparameters": {**self.default_config["hyperparameters"], **config.get("hyperparameters", {})},
-                "wrapper_settings": {**self.default_config["wrapper_settings"], **config.get("wrapper_settings", {})},
-                "env_settings": {**self.default_config["env_settings"], **config.get("env_settings", {})},
-                "enabled_wrappers": config.get("enabled_wrappers", self.default_config["enabled_wrappers"]),
-                "enabled_callbacks": config.get("enabled_callbacks", self.default_config["enabled_callbacks"]),
-            },
-            "use_active": True,
-        }
-        logger.info("Active configuration updated.")
+        try:
+            # Validate critical fields like game_id
+            if "game_id" not in config.get("training_config", {}):
+                raise ValueError("Missing 'game_id' in training configuration.")
 
+            # Merge the new configuration with defaults to ensure completeness
+            self.active_config = {
+                "config": {
+                    "training_config": {**self.default_config["training_config"], **config.get("training_config", {})},
+                    "hyperparameters": {**self.default_config["hyperparameters"], **config.get("hyperparameters", {})},
+                    "wrapper_settings": {**self.default_config["wrapper_settings"], **config.get("wrapper_settings", {})},
+                    "env_settings": {**self.default_config["env_settings"], **config.get("env_settings", {})},
+                    "enabled_wrappers": config.get("enabled_wrappers", self.default_config["enabled_wrappers"]),
+                    "enabled_callbacks": config.get("enabled_callbacks", self.default_config["enabled_callbacks"]),
+                },
+                "use_active": True,
+            }
+
+            logger.info("Active configuration updated successfully.")
+            logger.debug(f"Active configuration: {json.dumps(self.active_config['config'], indent=4)}")
+
+        except Exception as e:
+            logger.error(f"Failed to set active configuration: {str(e)}", exc_info=True)
+            raise
 
     def get_active_config(self):
         """
         Retrieve the active configuration.
         If no active configuration exists, return the default.
         """
-        return self.active_config["config"] if self.active_config["use_active"] else self.default_config
+        try:
+            if self.active_config["use_active"]:
+                logger.debug("Returning active configuration.")
+                return self.active_config["config"]
+            else:
+                logger.debug("Returning default configuration as no active configuration is set.")
+                return self.default_config
+        except KeyError as e:
+            logger.error(f"Error retrieving active configuration: {str(e)}")
+            return self.default_config
+
 
 
     def clear_active_config(self):
@@ -216,6 +282,11 @@ class TrainingManager:
             self.config["enabled_wrappers"] = new_config.get("enabled_wrappers", self.config["enabled_wrappers"])
             self.config["enabled_callbacks"] = new_config.get("enabled_callbacks", self.config["enabled_callbacks"])
 
+            # Validate critical fields like game_id
+            game_id = self.config["training_config"].get("game_id")
+            if not game_id:
+                raise ValueError("Missing 'game_id' in training configuration. Ensure it is set before starting training.")
+
             # Save this as the active configuration
             self.set_active_config(self.config)
             logger.info("Training configuration updated successfully.")
@@ -227,60 +298,74 @@ class TrainingManager:
     def _merge_and_parse_config(self):
         """
         Merge and parse user-provided configurations with default environment and wrapper settings.
+        Ensure it always returns a valid configuration.
         """
-        # Start with global defaults
-        training_config = {**ENV_SETTINGS, **self.config.get("training_config", {})}
-        wrapper_settings = {**WRAPPER_SETTINGS, **self.config.get("wrapper_settings", {})}
-        hyperparameters = {**DEFAULT_HYPERPARAMETERS, **self.config.get("hyperparameters", {})}
+        try:
+            # Start with global defaults
+            training_config = {**ENV_SETTINGS, **self.config.get("training_config", {})}
+            wrapper_settings = {**WRAPPER_SETTINGS, **self.config.get("wrapper_settings", {})}
+            hyperparameters = {**DEFAULT_HYPERPARAMETERS, **self.config.get("hyperparameters", {})}
 
-        # Handle special fields like `action_space`
-        if "action_space" in training_config:
-            action_space_str = training_config["action_space"].upper()
-            if action_space_str == "DISCRETE":
-                training_config["action_space"] = SpaceTypes.DISCRETE
-            elif action_space_str == "MULTI_DISCRETE":
-                training_config["action_space"] = SpaceTypes.MULTI_DISCRETE
-            else:
-                raise ValueError(f"Invalid action_space: {training_config['action_space']}")
+            # Handle special fields like `action_space`
+            if "action_space" in training_config:
+                action_space_str = training_config["action_space"].upper()
+                if action_space_str == "DISCRETE":
+                    training_config["action_space"] = SpaceTypes.DISCRETE
+                elif action_space_str == "MULTI_DISCRETE":
+                    training_config["action_space"] = SpaceTypes.MULTI_DISCRETE
+                else:
+                    raise ValueError(f"Invalid action_space: {training_config['action_space']}")
 
-        # Process numeric or None fields
-        for key, value in training_config.items():
-            if value in ("None", None, ""):
-                training_config[key] = None
-            elif isinstance(value, str) and value.replace(".", "", 1).isdigit():
-                training_config[key] = float(value) if "." in value else int(value)
+            # Process numeric or None fields
+            for key, value in training_config.items():
+                if value in ("None", None, ""):
+                    training_config[key] = None
+                elif isinstance(value, str) and value.replace(".", "", 1).isdigit():
+                    training_config[key] = float(value) if "." in value else int(value)
 
-        for key, value in hyperparameters.items():
-            if value in ("None", None, ""):
-                hyperparameters[key] = None
-            elif isinstance(value, str) and value.replace(".", "", 1).isdigit():
-                hyperparameters[key] = float(value) if "." in value else int(value)
+            for key, value in hyperparameters.items():
+                if value in ("None", None, ""):
+                    hyperparameters[key] = None
+                elif isinstance(value, str) and value.replace(".", "", 1).isdigit():
+                    hyperparameters[key] = float(value) if "." in value else int(value)
 
-        # Add dynamic schedules for learning rate and clipping ranges
-        hyperparameters["learning_rate"] = linear_schedule(
-            hyperparameters.get("learning_rate_start", 0.00025),
-            hyperparameters.get("learning_rate_end", 0.0000025),
-        )
-        hyperparameters["clip_range"] = linear_schedule(
-            hyperparameters.get("clip_range_start", 0.15),
-            hyperparameters.get("clip_range_end", 0.025),
-        )
-
-        if hyperparameters.get("clip_range_vf_start") is not None and hyperparameters.get("clip_range_vf_end") is not None:
-            hyperparameters["clip_range_vf"] = linear_schedule(
-                hyperparameters["clip_range_vf_start"],
-                hyperparameters["clip_range_vf_end"],
+            # Add dynamic schedules for learning rate and clipping ranges
+            hyperparameters["learning_rate"] = linear_schedule(
+                hyperparameters.get("learning_rate_start", 0.00025),
+                hyperparameters.get("learning_rate_end", 0.0000025),
+            )
+            hyperparameters["clip_range"] = linear_schedule(
+                hyperparameters.get("clip_range_start", 0.15),
+                hyperparameters.get("clip_range_end", 0.025),
             )
 
-        # Finalize merged configuration
-        self.config = {
-            "training_config": training_config,
-            "wrapper_settings": wrapper_settings,
-            "hyperparameters": hyperparameters,
-            "enabled_wrappers": self.config.get("enabled_wrappers", []),
-            "enabled_callbacks": self.config.get("enabled_callbacks", []),
-        }
-        logger.info("Configuration successfully merged and parsed.")
+            if hyperparameters.get("clip_range_vf_start") is not None and hyperparameters.get("clip_range_vf_end") is not None:
+                hyperparameters["clip_range_vf"] = linear_schedule(
+                    hyperparameters["clip_range_vf_start"],
+                    hyperparameters["clip_range_vf_end"],
+                )
+
+            # Finalize and return the merged configuration
+            config = {
+                "training_config": training_config,
+                "wrapper_settings": wrapper_settings,
+                "hyperparameters": hyperparameters,
+                "enabled_wrappers": self.config.get("enabled_wrappers", []),
+                "enabled_callbacks": self.config.get("enabled_callbacks", []),
+            }
+            logger.info("Configuration successfully merged and parsed.")
+            return config
+
+        except Exception as e:
+            logger.error(f"Error merging and parsing configuration: {e}", exc_info=True)
+            # Fallback to default configuration if there's an error
+            return {
+                "training_config": ENV_SETTINGS.copy(),
+                "wrapper_settings": WRAPPER_SETTINGS.copy(),
+                "hyperparameters": DEFAULT_HYPERPARAMETERS.copy(),
+                "enabled_wrappers": self.config.get("enabled_wrappers", []),
+                "enabled_callbacks": self.config.get("enabled_callbacks", []),
+            }
 
 
 
@@ -297,38 +382,33 @@ class TrainingManager:
 
         logger.info(f"Enabled callbacks from config: {enabled_callbacks}")
         self.callback_instances = []
+        serialized_callbacks = []  # To store callback details for reconstruction
 
         for name, blueprint in self.callback_blueprints.items():
             if name in enabled_callbacks:
                 logger.debug(f"Initializing callback: {blueprint.name}")
-                self.callback_instances.append(
-                    blueprint.create_instance(config=self.config, training_manager=self)
-                )
+                try:
+                    # Create the callback instance
+                    callback_instance = blueprint.create_instance(config=self.config, training_manager=self)
+                    self.callback_instances.append(callback_instance)
+
+                    # Serialize the callback for reconstruction
+                    serialized_callbacks.append({
+                        "module": blueprint.component_class.__module__,
+                        "class_name": blueprint.component_class.__name__,
+                        "params": {**blueprint.default_params},  # Include default params
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to initialize callback '{name}': {e}")
             else:
                 logger.warning(f"Callback '{blueprint.name}' not selected or not required. Skipping.")
 
         if not self.callback_instances:
             logger.warning("No valid callbacks initialized. Training will proceed without callbacks.")
 
-        # Initialize wrappers
-        enabled_wrappers = set(self.config.get("enabled_wrappers", []))  # Get manually selected wrappers
-        required_wrappers = {
-            name for name, blueprint in self.wrapper_blueprints.items() if blueprint.is_required()
-        }
-        enabled_wrappers.update(required_wrappers)  # Ensure required wrappers are always included
-
-        logger.info(f"Enabled wrappers from config: {enabled_wrappers}")
-        self.selected_wrappers = []
-
-        for name, blueprint in self.wrapper_blueprints.items():
-            if name in enabled_wrappers:  # Include both required and manually selected wrappers
-                logger.debug(f"Selecting wrapper: {blueprint.name}")
-                self.selected_wrappers.append(blueprint.name)
-            else:
-                logger.warning(f"Wrapper '{blueprint.name}' not selected or not required. Skipping.")
-
-        logger.debug(f"Final selected wrappers: {self.selected_wrappers}")
-        logger.debug(f"Final selected callbacks: {[callback.__class__.__name__ for callback in self.callback_instances]}")
+        # Store serialized callbacks for later reconstruction
+        self.config["serialized_callbacks"] = serialized_callbacks
+        logger.debug(f"Serialized Callbacks: {json.dumps(serialized_callbacks, indent=4)}")
 
 
     def _initialize_environments_and_model(self):

@@ -5,7 +5,18 @@ import sys
 from diambra.arena.stable_baselines3.make_sb3_env import make_sb3_env, EnvironmentSettings, WrappersSettings
 from diambra.arena import SpaceTypes, load_settings_flat_dict
 from stable_baselines3 import PPO
-from diambra.arena.stable_baselines3.sb3_utils import linear_schedule, AutoSave
+from diambra.arena.stable_baselines3.sb3_utils import linear_schedule
+from stable_baselines3.common.callbacks import CallbackList
+import os
+import pickle
+
+# Add the project root directory and the `app` directory to `sys.path`
+project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, project_root)
+sys.path.insert(1, os.path.join(project_root, "app"))
+
+from app.tools.utils import dynamic_load_blueprints, initialize_callbacks, apply_wrappers
+from app.log_manager import LogManager
 
 
 def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
@@ -160,64 +171,119 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
 
     return env_settings, wrapper_settings, hyperparameters
 
+def validate_and_initialize_blueprints(training_manager):
+    """
+    Validate and initialize dynamically loaded blueprints for callbacks and wrappers.
+    """
+    training_manager.wrapper_blueprints = dynamic_load_blueprints("app.tools.app_wrappers")
+    training_manager.callback_blueprints = dynamic_load_blueprints("app.tools.app_callbacks")
+
+    logger = LogManager("validate_and_initialize_blueprints")
+    logger.info("Validating and initializing blueprints...")
+
+    # Print loaded blueprints for debugging
+    logger.info(f"Loaded Wrapper Blueprints: {list(training_manager.wrapper_blueprints.keys())}")
+    logger.info(f"Loaded Callback Blueprints: {list(training_manager.callback_blueprints.keys())}")
+
+    initialize_callbacks(training_manager)
+    logger.info("Blueprint validation and initialization completed.")
+
+
+def validate_loaded_config(training_manager):
+    """
+    Validate and clean the configuration after loading from the pickle file.
+    """
+    try:
+        config = training_manager.active_config["config"]
+        env_settings = config["env_settings"]
+        wrapper_settings = config["wrapper_settings"]
+        hyperparameters = config["hyperparameters"]
+
+        print("Validating and converting configuration...")
+        env_settings, wrapper_settings, hyperparameters = validate_and_convert(env_settings, wrapper_settings, hyperparameters)
+
+        config["env_settings"] = env_settings
+        config["wrapper_settings"] = wrapper_settings
+        config["hyperparameters"] = hyperparameters
+        training_manager.active_config["config"] = config
+        print("Configuration validated and updated successfully.")
+    except Exception as e:
+        print(f"Error validating configuration: {e}")
+        raise RuntimeError("Failed to validate loaded configuration.") from e
+
+
+def load_from_pickle(file_path):
+    """Load an object from a pickle file."""
+    try:
+        with open(file_path, "rb") as f:
+            obj = pickle.load(f)
+        print(f"Object loaded from pickle file: {file_path}")
+        return obj
+    except Exception as e:
+        print(f"Failed to load object from {file_path}: {e}")
+        raise RuntimeError(f"Failed to load object from {file_path}: {e}")
+
 
 def main():
     """Main function for setting up and training the PPO agent."""
     if len(sys.argv) < 2:
-        print("Usage: python training_script.py <config_file_path>")
+        print("Usage: python training_script.py <pickle_file_path>")
         sys.exit(1)
 
-    # Load configuration
-    config_file_path = sys.argv[1]
-    with open(config_file_path, "r") as f:
-        config = json.load(f)
+    pickle_file_path = sys.argv[1]
+    training_manager = load_from_pickle(pickle_file_path)
 
-    training_config = config["training_config"]
-    hyperparameters = config["hyperparameters"]
-    wrapper_settings = config["wrapper_settings"]
-    env_settings = config["env_settings"]
+    # Validate and initialize configuration and blueprints
+    if not training_manager or not training_manager.active_config or not training_manager.active_config["use_active"]:
+        print("No valid active configuration found in the loaded TrainingManager.")
+        sys.exit(1)
 
-    # Convert action_space from string to SpaceTypes
+    validate_loaded_config(training_manager)
+    validate_and_initialize_blueprints(training_manager)
+
+    # Extract configurations
+    training_config = training_manager.active_config["config"]["training_config"]
+    hyperparameters = training_manager.active_config["config"]["hyperparameters"]
+    wrapper_settings = training_manager.active_config["config"]["wrapper_settings"]
+    env_settings = training_manager.active_config["config"]["env_settings"]
+    callback_instances = training_manager.callback_instances
+
+    # Log the active configuration for debugging
+    print("Active Configuration:")
+    print(json.dumps(training_manager.active_config, indent=4))
+
+    # Log the loaded callbacks for debugging
+    print(f"Loaded callbacks: {[type(cb).__name__ for cb in callback_instances]}")
+
+    # Convert `action_space` to SpaceTypes
     if "action_space" in env_settings:
-        action_space_value = env_settings["action_space"]
-        if isinstance(action_space_value, str):
-            try:
-                env_settings["action_space"] = getattr(SpaceTypes, action_space_value)
-                print(f"Converted action_space to SpaceTypes: {env_settings['action_space']}")
-            except AttributeError:
-                raise ValueError(f"Invalid action_space value: {action_space_value}. Must be one of {list(SpaceTypes)}")
+        action_space_value = env_settings["action_space"].lower()
+        if action_space_value == "discrete":
+            env_settings["action_space"] = SpaceTypes.DISCRETE
+        elif action_space_value == "multi_discrete":
+            env_settings["action_space"] = SpaceTypes.MULTI_DISCRETE
+        else:
+            raise ValueError(f"Invalid action_space value: {action_space_value}. Must be 'discrete' or 'multi_discrete'.")
 
-    # Validate and convert the configurations
-    env_settings, wrapper_settings, hyperparameters = validate_and_convert(
-        env_settings, wrapper_settings, hyperparameters
-    )
-
-    print("\nValidated and Converted Settings:")
-    print(json.dumps(env_settings, indent=4))
-    print(json.dumps(wrapper_settings, indent=4))
-    print(json.dumps(hyperparameters, indent=4))
+    # Convert settings to objects
     env_settings_obj = load_settings_flat_dict(EnvironmentSettings, env_settings)
     wrapper_settings_obj = load_settings_flat_dict(WrappersSettings, wrapper_settings)
 
-    # Calculate learning_rate and clip_range using linear_schedule
-    learning_rate = linear_schedule(
+    # Handle dynamic schedules for hyperparameters
+    hyperparameters["learning_rate"] = linear_schedule(
         float(hyperparameters["learning_rate_start"]),
         float(hyperparameters["learning_rate_end"]),
     )
-    clip_range = linear_schedule(
+    hyperparameters["clip_range"] = linear_schedule(
         float(hyperparameters["clip_range_start"]),
         float(hyperparameters["clip_range_end"]),
     )
-    clip_range_vf = (
-        linear_schedule(
+    if hyperparameters.get("clip_range_vf_start") and hyperparameters.get("clip_range_vf_end"):
+        hyperparameters["clip_range_vf"] = linear_schedule(
             float(hyperparameters["clip_range_vf_start"]),
             float(hyperparameters["clip_range_vf_end"]),
         )
-        if hyperparameters.get("clip_range_vf_start") and hyperparameters.get("clip_range_vf_end")
-        else None
-    )
 
-    # Define policy kwargs for network architecture
     policy_kwargs = {
         "net_arch": [
             dict(
@@ -226,50 +292,43 @@ def main():
             )
         ]
     }
+    hyperparameters["policy_kwargs"] = policy_kwargs
 
-    # Create environment
+    # Initialize the environment
+    print("Initializing environment...")
     env, num_envs = make_sb3_env(
         training_config["game_id"],
         env_settings_obj,
         wrapper_settings_obj,
     )
 
-    # Create PPO agent
+    # Train with callbacks
+    print("Creating PPO agent...")
     agent = PPO(
         "MultiInputPolicy",
         env,
-        learning_rate=learning_rate,
-        n_steps=int(hyperparameters["n_steps"]),
-        batch_size=int(hyperparameters["batch_size"]),
-        n_epochs=int(hyperparameters["n_epochs"]),
-        gamma=float(hyperparameters["gamma"]),
-        gae_lambda=float(hyperparameters["gae_lambda"]),
-        clip_range=clip_range,
-        clip_range_vf=clip_range_vf,
-        normalize_advantage=bool(hyperparameters["normalize_advantage"]),
-        ent_coef=float(hyperparameters["ent_coef"]),
-        vf_coef=float(hyperparameters["vf_coef"]),
-        max_grad_norm=float(hyperparameters["max_grad_norm"]),
-        target_kl=hyperparameters.get("target_kl"),
+        verbose=1,
+        learning_rate=linear_schedule(hyperparameters["learning_rate_start"], hyperparameters["learning_rate_end"]),
+        n_steps=hyperparameters["n_steps"],
+        batch_size=hyperparameters["batch_size"],
+        n_epochs=hyperparameters["n_epochs"],
+        gamma=hyperparameters["gamma"],
+        gae_lambda=hyperparameters["gae_lambda"],
+        clip_range=linear_schedule(hyperparameters["clip_range_start"], hyperparameters["clip_range_end"]),
         tensorboard_log=training_config.get("tensorboard_log"),
         seed=hyperparameters.get("seed"),
         device=hyperparameters["device"],
-        policy_kwargs=policy_kwargs,
     )
 
-    # Train the agent
-    agent.learn(
-        total_timesteps=int(training_config["total_timesteps"]),
-        callback=AutoSave(
-            check_freq=int(training_config["autosave_freq"]),
-            num_envs=num_envs,
-            save_path=training_config.get("save_path", "./checkpoints"),
-        ),
-    )
+    # Log the CallbackList for debugging
+    callback_list = CallbackList(callback_instances)
+    print(f"CallbackList contains: {[type(cb).__name__ for cb in callback_list.callbacks]}")
 
-    # Close the environment
+    print("Starting training...")
+    agent.learn(total_timesteps=int(training_config["total_timesteps"]), callback=callback_list)
     env.close()
+    print("Training complete. Environment closed.")
 
 
 if __name__ == "__main__":
-    main()
+    main() 

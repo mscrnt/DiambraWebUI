@@ -9,3 +9,4 @@
 *.log
 app/dimabra/credentials
 *.zip
+app/tmp/tmpfile_*.json
