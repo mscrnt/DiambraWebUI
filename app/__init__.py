@@ -1,6 +1,19 @@
 # path: .app/__init__.py
 
 from app.tools.filter_keys import get_filter_keys
+import os
+
+# Get the root directory of the application
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+# Default paths
+DEFAULT_PATHS = {
+    "log_dir": os.path.join(APP_ROOT, "logs"),
+    "tensorboard_log_dir": os.path.join(APP_ROOT, "logs", "tensorboard"),
+    "save_path": os.path.join(APP_ROOT, "checkpoints"),
+    "credentials_file": os.path.join(APP_ROOT, "dimabra", "credentials"),  # Absolute path
+    "roms_path": os.path.join(APP_ROOT, "roms"),  # Absolute path
+}
 
 # Default training configuration
 DEFAULT_TRAINING_CONFIG = {
@@ -84,13 +97,6 @@ DEFAULT_HYPERPARAMETERS = {
     "target_kl": None,
 }
  
-# Default paths
-DEFAULT_PATHS = {
-    "log_dir": "./logs",
-    "tensorboard_log_dir": "./logs/tensorboard",
-    "save_path": "./checkpoints",
-    "dimabra_path": "./dimabra",
-}
 
 
 # Exported symbols

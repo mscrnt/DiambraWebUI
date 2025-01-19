@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 import re
 from colorsys import hsv_to_rgb
+import subprocess
 
 
 colorama.init(autoreset=True)
@@ -237,6 +238,25 @@ class LogManager:
             "ERROR": Fore.RED,  # Red only for errors
         }
         return color_map.get(levelname, Fore.WHITE)
+    
+    def stream_container_logs(self, container_name):
+        """
+        Stream logs from a Docker container and output them to the logger in real time.
+
+        :param container_name: Name of the Docker container to monitor.
+        """
+        self.info(f"Starting log streaming for container: {container_name}")
+        cmd = ["docker", "logs", "-f", container_name]
+        try:
+            with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1) as process:
+                for line in process.stdout:
+                    if line:
+                        self.info(f"[{container_name}] {line.strip()}")
+                for line in process.stderr:
+                    if line:
+                        self.error(f"[{container_name}] {line.strip()}")
+        except Exception as e:
+            self.error(f"Error streaming logs for container '{container_name}': {e}")
 
     def debug(self, *args, **kwargs):
         self.logger.debug(self._format_message(*args, **kwargs))

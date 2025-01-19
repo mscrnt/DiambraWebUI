@@ -1,19 +1,16 @@
 # path: ./app/training_manager.py
 
-from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS
+from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS, ENV_SETTINGS, WRAPPER_SETTINGS
 from app.render_manager import RenderManager
 from app.log_manager import LogManager
-from app.tools.utils import diambra_blueprint as callback_blueprint
-from app.tools.utils import dynamic_load_blueprints
+from app.tools.utils import dynamic_load_blueprints, filter_config
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import CallbackList
 from diambra.arena import load_settings_flat_dict, SpaceTypes
 from diambra.arena.stable_baselines3.make_sb3_env import make_sb3_env, EnvironmentSettings, WrappersSettings
 from diambra.arena.stable_baselines3.sb3_utils import linear_schedule
 import threading
-import importlib
-import inspect
+
 
 
 
@@ -21,12 +18,11 @@ logger = LogManager("TrainingManager")
 
 
 class TrainingManager:
-    def __init__(self, config=None, db_manager=None):
+    def __init__(self, config=None):
         """
         Initialize the TrainingManager.
 
         :param config: Configuration for training.
-        :param db_manager: Instance of the DBManager for database operations.
         """
         # Load blueprints dynamically
         self.wrapper_blueprints = dynamic_load_blueprints("app.tools.app_wrappers")
@@ -36,6 +32,7 @@ class TrainingManager:
         self.default_config = self.get_default_config(
             wrapper_blueprints=self.wrapper_blueprints,
             callback_blueprints=self.callback_blueprints,
+            
         )
 
         # Use provided or default configuration
@@ -45,7 +42,6 @@ class TrainingManager:
         self.active_config = {"config": None, "use_active": False}
 
         # Other attributes
-        self.db_manager = db_manager  # Assign the db_manager
         self.training_active_event = threading.Event()
         self.training_active_event.clear()
         self.model_updated_flag = threading.Event()
@@ -53,6 +49,8 @@ class TrainingManager:
         self.render_manager = None
         self.model = None
         self.env = None
+        self.num_envs = int(self.config["training_config"].get("num_envs", 1))
+        self.render_env_num_envs = 1
         self.wrapper_blueprints = {}
         self.callback_blueprints = {}
         self.callback_instances = []
@@ -65,7 +63,7 @@ class TrainingManager:
             "rolling_lines": False,
             "gamma_correction": False,
         }
-
+        
     def get_shader_settings(self):
         """Get the current shader settings."""
         return self.shader_settings
@@ -82,9 +80,21 @@ class TrainingManager:
             self.shader_settings[key] = enable_all
 
     def set_active_config(self, config):
-        """Set the active configuration."""
-        self.active_config = {"config": config, "use_active": True}
+        """Set the active configuration, ensuring all fields are properly updated."""
+        # Merge the new configuration with defaults to ensure completeness
+        self.active_config = {
+            "config": {
+                "training_config": {**self.default_config["training_config"], **config.get("training_config", {})},
+                "hyperparameters": {**self.default_config["hyperparameters"], **config.get("hyperparameters", {})},
+                "wrapper_settings": {**self.default_config["wrapper_settings"], **config.get("wrapper_settings", {})},
+                "env_settings": {**self.default_config["env_settings"], **config.get("env_settings", {})},
+                "enabled_wrappers": config.get("enabled_wrappers", self.default_config["enabled_wrappers"]),
+                "enabled_callbacks": config.get("enabled_callbacks", self.default_config["enabled_callbacks"]),
+            },
+            "use_active": True,
+        }
         logger.info("Active configuration updated.")
+
 
     def get_active_config(self):
         """
@@ -128,6 +138,8 @@ class TrainingManager:
             "hyperparameters": DEFAULT_HYPERPARAMETERS.copy(),
             "enabled_wrappers": required_wrappers,
             "enabled_callbacks": required_callbacks,
+            "wrapper_settings": WRAPPER_SETTINGS.copy(),
+            "env_settings": ENV_SETTINGS.copy(),
         }
 
     def stop_training(self):
@@ -157,16 +169,15 @@ class TrainingManager:
     def initialize_training(self):
         """Initialize training configurations, environments, and the model."""
         logger.debug("Initializing training with config", extra={"config": self.config})
-
-        # Load blueprints dynamically
-        self.wrapper_blueprints = dynamic_load_blueprints("app.tools.app_wrappers")
-        self.callback_blueprints = dynamic_load_blueprints("app.tools.app_callbacks")
-
-        logger.debug(f"Loaded wrapper blueprints: {list(self.wrapper_blueprints.keys())}")
-        logger.debug(f"Loaded callback blueprints: {list(self.callback_blueprints.keys())}")
+        logger.debug(f"Using loaded wrapper blueprints: {list(self.wrapper_blueprints.keys())}")
+        logger.debug(f"Using loaded callback blueprints: {list(self.callback_blueprints.keys())}")
 
         # Load the active configuration
         self.config = self.get_active_config()
+
+        game_id = self.config["training_config"].get("game_id")
+        if not game_id:
+            raise ValueError("Game ID is missing or invalid in the training configuration.")
 
         # Merge and parse user configuration
         self._merge_and_parse_config()
@@ -183,107 +194,95 @@ class TrainingManager:
             model=self.model,
             training_active_flag=self.is_training_active,
             model_updated_flag=self.model_updated_flag,
-            shader_settings_flag=lambda: self.shader_settings  # Dynamically fetch shader states
+            shader_settings_flag=lambda: self.shader_settings,  # Dynamically fetch shader states
         )
 
     def update_config(self, new_config):
         """Update the training configuration with a new configuration."""
         try:
-            # Ensure self.config contains all necessary keys
+            # Ensure all necessary keys exist in the configuration
             self.config.setdefault("training_config", {})
             self.config.setdefault("hyperparameters", {})
+            self.config.setdefault("wrapper_settings", {})
+            self.config.setdefault("env_settings", {})
             self.config.setdefault("enabled_wrappers", [])
             self.config.setdefault("enabled_callbacks", [])
 
-            # Update with new configuration values
+            # Update the configuration fields
             self.config["training_config"].update(new_config.get("training_config", {}))
             self.config["hyperparameters"].update(new_config.get("hyperparameters", {}))
+            self.config["wrapper_settings"].update(new_config.get("wrapper_settings", {}))
+            self.config["env_settings"].update(new_config.get("env_settings", {}))
             self.config["enabled_wrappers"] = new_config.get("enabled_wrappers", self.config["enabled_wrappers"])
             self.config["enabled_callbacks"] = new_config.get("enabled_callbacks", self.config["enabled_callbacks"])
-            
+
+            # Save this as the active configuration
+            self.set_active_config(self.config)
             logger.info("Training configuration updated successfully.")
         except Exception as e:
-            logger.error("Failed to update configuration", exception=e)
+            logger.error("Failed to update configuration", exc_info=True)
             raise ValueError("Invalid configuration format or data")
 
 
     def _merge_and_parse_config(self):
-        """Merge and parse user-provided configurations."""
-        default_config = {
-            "num_envs": 1,
-            "total_timesteps": 32000000,
-            "n_steps": 256,
-            "batch_size": 64,
-            "gamma": 0.99,
-            "gae_lambda": 0.95,
-            "clip_range_start": 0.2,
-            "clip_range_end": 0.05,
-            "clip_range_vf_start": None,
-            "clip_range_vf_end": None,
-            "learning_rate_start": 0.0003,
-            "learning_rate_end": 0.00005,
-            "n_epochs": 10,
-            "vf_coef": 0.9,
-            "ent_coef": 0.01,
-            "max_grad_norm": 0.5,
-            "normalize_advantage": True,  # Default to True
-            "policy_kwargs": {
-                "features_extractor_kwargs": {"features_dim": 128},
-                "net_arch": [{"pi": [256, 256], "vf": [256, 256]}],
-            },
-            "tensorboard_log": "./logs/tensorboard",
-            "save_path": "./checkpoints",
-            "device": "auto",
-            "shader_settings": {
-                "radialDistortion": False,
-                "scanlines": False,
-                "dotMask": False,
-                "rollingLines": False,
-                "gammaCorrection": False,
-            },
-        }
+        """
+        Merge and parse user-provided configurations with default environment and wrapper settings.
+        """
+        # Start with global defaults
+        training_config = {**ENV_SETTINGS, **self.config.get("training_config", {})}
+        wrapper_settings = {**WRAPPER_SETTINGS, **self.config.get("wrapper_settings", {})}
+        hyperparameters = {**DEFAULT_HYPERPARAMETERS, **self.config.get("hyperparameters", {})}
 
-        training_config = self.config.get("training_config", {})
-        hyperparameters = self.config.get("hyperparameters", {})
+        # Handle special fields like `action_space`
+        if "action_space" in training_config:
+            action_space_str = training_config["action_space"].upper()
+            if action_space_str == "DISCRETE":
+                training_config["action_space"] = SpaceTypes.DISCRETE
+            elif action_space_str == "MULTI_DISCRETE":
+                training_config["action_space"] = SpaceTypes.MULTI_DISCRETE
+            else:
+                raise ValueError(f"Invalid action_space: {training_config['action_space']}")
 
-        # Initialize wrappers and callbacks as empty lists
-        enabled_wrappers = self.config.get("enabled_wrappers", [])
-        enabled_callbacks = self.config.get("enabled_callbacks", [])
-
-        # Parse stages input to convert from comma-separated string
-        stages = training_config.get("stages", [])
-        if isinstance(stages, str):  # Convert string to a list
-            stages = [stage.strip() for stage in stages.split(",") if stage.strip()]
-        training_config["stages"] = stages
-
-        # Parse and merge configurations
-        for key, value in {**training_config, **hyperparameters}.items():
-            if value in ("None", None, ""):  # Handle None and empty strings
+        # Process numeric or None fields
+        for key, value in training_config.items():
+            if value in ("None", None, ""):
                 training_config[key] = None
-                hyperparameters[key] = None
             elif isinstance(value, str) and value.replace(".", "", 1).isdigit():
                 training_config[key] = float(value) if "." in value else int(value)
+
+        for key, value in hyperparameters.items():
+            if value in ("None", None, ""):
+                hyperparameters[key] = None
+            elif isinstance(value, str) and value.replace(".", "", 1).isdigit():
                 hyperparameters[key] = float(value) if "." in value else int(value)
 
-        default_config.update(training_config)
-        default_config.update(hyperparameters)
+        # Add dynamic schedules for learning rate and clipping ranges
+        hyperparameters["learning_rate"] = linear_schedule(
+            hyperparameters.get("learning_rate_start", 0.00025),
+            hyperparameters.get("learning_rate_end", 0.0000025),
+        )
+        hyperparameters["clip_range"] = linear_schedule(
+            hyperparameters.get("clip_range_start", 0.15),
+            hyperparameters.get("clip_range_end", 0.025),
+        )
 
-        # Add dynamic schedules
-        default_config["learning_rate"] = linear_schedule(
-            float(default_config["learning_rate_start"]), float(default_config["learning_rate_end"])
-        )
-        default_config["clip_range"] = linear_schedule(
-            float(default_config["clip_range_start"]), float(default_config["clip_range_end"])
-        )
-        if default_config.get("clip_range_vf_start") is not None and default_config.get("clip_range_vf_end") is not None:
-            default_config["clip_range_vf"] = linear_schedule(
-                float(default_config["clip_range_vf_start"]), float(default_config["clip_range_vf_end"])
+        if hyperparameters.get("clip_range_vf_start") is not None and hyperparameters.get("clip_range_vf_end") is not None:
+            hyperparameters["clip_range_vf"] = linear_schedule(
+                hyperparameters["clip_range_vf_start"],
+                hyperparameters["clip_range_vf_end"],
             )
 
-        # Preserve wrappers and callbacks
-        default_config["enabled_wrappers"] = enabled_wrappers
-        default_config["enabled_callbacks"] = enabled_callbacks
-        self.config = default_config
+        # Finalize merged configuration
+        self.config = {
+            "training_config": training_config,
+            "wrapper_settings": wrapper_settings,
+            "hyperparameters": hyperparameters,
+            "enabled_wrappers": self.config.get("enabled_wrappers", []),
+            "enabled_callbacks": self.config.get("enabled_callbacks", []),
+        }
+        logger.info("Configuration successfully merged and parsed.")
+
+
 
     def _initialize_callbacks_and_wrappers(self):
         """Initialize selected wrappers and callbacks."""
@@ -332,57 +331,58 @@ class TrainingManager:
         logger.debug(f"Final selected callbacks: {[callback.__class__.__name__ for callback in self.callback_instances]}")
 
 
-
-
     def _initialize_environments_and_model(self):
         """Initialize the environment and the model."""
         try:
-            # Pass db_manager when creating the render environment
-            self.render_env = make_sb3_env(
+            # Filter training_config for valid EnvironmentSettings fields
+            valid_env_keys = set(EnvironmentSettings.__annotations__.keys())
+            filtered_training_config = filter_config(self.config["training_config"], valid_env_keys)
+
+            # Filter hyperparameters for valid WrappersSettings fields
+            valid_wrapper_keys = set(WrappersSettings.__annotations__.keys())
+            filtered_wrapper_config = filter_config(self.config["hyperparameters"], valid_wrapper_keys)
+
+            logger.debug(f"Filtered training configuration: {filtered_training_config}")
+            logger.debug(f"Filtered wrapper configuration: {filtered_wrapper_config}")
+
+            # Create render environment
+            self.render_env, self.render_env_num_envs = make_sb3_env(
                 self.config["training_config"]["game_id"],
-                load_settings_flat_dict(EnvironmentSettings, self.config["training_config"]),
-                load_settings_flat_dict(WrappersSettings, self.config["hyperparameters"]),
-                rank=0,  # Render environment is always rank 0
-            )()
+                load_settings_flat_dict(EnvironmentSettings, filtered_training_config),
+                load_settings_flat_dict(WrappersSettings, filtered_wrapper_config),
+            )
 
-
-            # Training environments
-            num_envs = int(self.config["num_envs"])
-            env_fns = [
-                make_sb3_env(
-                    self.config["training_config"]["game_id"],
-                    load_settings_flat_dict(EnvironmentSettings, self.config["training_config"]),
-                    load_settings_flat_dict(WrappersSettings, self.config["hyperparameters"]),
-                    rank=i + 1,
-                )
-                for i in range(num_envs)
-            ]
-            self.env = VecMonitor(SubprocVecEnv(env_fns))
+            # Create training environments
+            self.env, self.num_envs = make_sb3_env(
+                self.config["training_config"]["game_id"],
+                load_settings_flat_dict(EnvironmentSettings, filtered_training_config),
+                load_settings_flat_dict(WrappersSettings, filtered_wrapper_config),
+            )
 
             # Create PPO model
             self.model = PPO(
                 "MultiInputPolicy",
                 self.env,
                 verbose=1,
-                gamma=self.config["gamma"],
-                n_steps=self.config["n_steps"],
-                batch_size=self.config["batch_size"],
-                n_epochs=self.config["n_epochs"],
-                learning_rate=self.config["learning_rate"],
-                clip_range=self.config["clip_range"],
-                clip_range_vf=self.config.get("clip_range_vf"),
-                normalize_advantage=self.config["normalize_advantage"],
-                ent_coef=self.config["ent_coef"],
-                vf_coef=self.config["vf_coef"],
-                max_grad_norm=self.config["max_grad_norm"],
-                policy_kwargs=self.config["policy_kwargs"],
-                target_kl=self.config["target_kl"],
-                tensorboard_log=self.config["tensorboard_log"],
-                seed=self.config["seed"],
-                device=self.config["device"],
+                gamma=self.config["hyperparameters"]["gamma"],
+                n_steps=self.config["hyperparameters"]["n_steps"],
+                batch_size=self.config["hyperparameters"]["batch_size"],
+                n_epochs=self.config["hyperparameters"]["n_epochs"],
+                learning_rate=self.config["hyperparameters"]["learning_rate"],
+                clip_range=self.config["hyperparameters"]["clip_range"],
+                clip_range_vf=self.config["hyperparameters"].get("clip_range_vf"),
+                normalize_advantage=self.config["hyperparameters"]["normalize_advantage"],
+                ent_coef=self.config["hyperparameters"]["ent_coef"],
+                vf_coef=self.config["hyperparameters"]["vf_coef"],
+                max_grad_norm=self.config["hyperparameters"]["max_grad_norm"],
+                policy_kwargs=self.config["hyperparameters"]["policy_kwargs"],
+                target_kl=self.config["hyperparameters"]["target_kl"],
+                tensorboard_log=self.config["training_config"]["tensorboard_log"],
+                seed=self.config["hyperparameters"]["seed"],
+                device=self.config["hyperparameters"]["device"],
             )
         except Exception as e:
-            logger.error("Error initializing environments or model.", exception=e)
+            logger.error("Error initializing environments or model.", exc_info=True)
             raise
 
 

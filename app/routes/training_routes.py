@@ -2,6 +2,21 @@
 
 from flask import Blueprint, request, jsonify
 import threading
+from app import (
+    DEFAULT_HYPERPARAMETERS,
+    DEFAULT_TRAINING_CONFIG,
+    DEFAULT_PATHS,
+    ENV_SETTINGS,
+    WRAPPER_SETTINGS,
+    AVAILABLE_GAMES
+)
+from app.tools.filter_keys import get_filter_keys
+from app.tools.utils import start_diambra_engine
+import os
+import subprocess
+import tempfile
+import json
+import gc
 
 enable_crt_shader = False
 
@@ -46,61 +61,158 @@ def create_training_blueprint(training_manager, app_logger, ):
 
     @training_blueprint.route("/start_training", methods=["POST"])
     def start_training():
-        """Start the training process using TrainingManager."""
-        nonlocal training_thread
+        """
+        Start the training process by preparing the training configuration and 
+        launching the DIAMBRA CLI command to execute the training script.
+        """
+        global monitoring_thread
+        global monitoring_active
+        gc.collect()
 
         with training_lock:
             if training_manager.is_training_active():
                 return jsonify({"status": "running", "message": "Training is already in progress."})
 
-            data = request.get_json() or {}
-            logger.debug(f"Received training data: {data}")
             try:
-                # Merge existing active config with new data
-                current_config = training_manager.get_active_config()
-                merged_config = {
-                    "training_config": {**current_config.get("training_config", {}), **data.get("training_config", {})},
-                    "hyperparameters": {**current_config.get("hyperparameters", {}), **data.get("hyperparameters", {})},
-                    "enabled_wrappers": list(set(data.get("wrappers", []) + current_config.get("enabled_wrappers", []))),
-                    "enabled_callbacks": list(set(data.get("callbacks", []) + current_config.get("enabled_callbacks", []))),
-                }
-                logger.debug(f"Merged Configuration: {merged_config}")
-                training_manager.set_active_config(merged_config)
-                logger.info("TrainingManager configuration updated and set as active.")
-            except ValueError as e:
-                logger.error(f"Error updating configuration: {e}")
-                return jsonify({"status": "error", "message": str(e)}), 400 
+                # Retrieve and validate the incoming training data
+                data = request.get_json() or {}
+                logger.debug(f"Received training data: {json.dumps(data, indent=4)}")
 
-        def run_training():
-            try:
-                logger.debug("Starting training initialization.")
-                training_manager.initialize_training()
-                logger.debug("Starting training loop.")
-                training_manager.start_training()
+                roms_path = data.get("roms_path", DEFAULT_PATHS["roms_path"])
+                if not os.path.exists(roms_path):
+                    return jsonify({"status": "error", "message": f"ROMs path does not exist: {roms_path}"}), 400
+
+                num_envs = int(data.get("training_config", {}).get("num_envs", 1))
+                if num_envs < 1:
+                    return jsonify({"status": "error", "message": "Number of environments must be at least 1."}), 400
+
+                # Update active training configuration
+                training_manager.update_config({
+                    "training_config": data.get("training_config", {}),
+                    "hyperparameters": data.get("hyperparameters", {}),
+                    "wrapper_settings": data.get("wrapper_settings", {}),
+                    "env_settings": data.get("env_settings", {}),  # Add env_settings
+                    "enabled_wrappers": data.get("wrappers", training_manager.get_active_config().get("enabled_wrappers", [])),
+                    "enabled_callbacks": data.get("callbacks", training_manager.get_active_config().get("enabled_callbacks", [])),
+                })
+
+                # Prepare the configuration file
+                active_config = training_manager.get_active_config()
+                temp_config_file_path = os.path.join(os.getcwd(), "tmp", f"tmpfile_{os.getpid()}.json")
+                os.makedirs(os.path.dirname(temp_config_file_path), exist_ok=True)
+
+                with open(temp_config_file_path, 'w') as temp_config_file:
+                    json.dump(active_config, temp_config_file, indent=4)
+                logger.info(f"Temporary configuration file created: {temp_config_file_path}")
+
+                # Construct the DIAMBRA CLI command
+                python_executable = os.path.join(os.path.dirname(os.getcwd()), "venv", "Scripts", "python.exe")
+                script_path = os.path.join(os.getcwd(), "training_script.py")
+                command = [
+                    "diambra", "run",
+                    "-s", str(num_envs),
+                    "--path.roms", roms_path,
+                    "--interactive=false",
+                    "--env.preallocateport",
+                    python_executable, script_path, temp_config_file_path
+                ]
+                logger.info(f"DIAMBRA CLI command: {' '.join(command)}")
+
+                # Define the log monitoring function
+                def monitor_logs():
+                    logger.info("Starting DIAMBRA CLI log monitoring...")
+                    try:
+                        with subprocess.Popen(
+                            command,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            bufsize=1,
+                            encoding="utf-8"
+                        ) as process:
+                            for line in process.stdout:
+                                if line.strip():
+                                    logger.info(f"[diambra_cli] {line.strip()}")
+                            process.wait()
+                            if process.returncode != 0:
+                                logger.error(f"DIAMBRA CLI exited with return code {process.returncode}.")
+                    except Exception as e:
+                        logger.error(f"Error monitoring logs: {str(e)}")
+                    finally:
+                        # Clean up the temporary configuration file
+                        if os.path.exists(temp_config_file_path):
+                            os.remove(temp_config_file_path)
+                            logger.info(f"Temporary configuration file deleted: {temp_config_file_path}")
+
+                # Start the log monitoring in a separate thread
+                monitoring_active = True
+                monitoring_thread = threading.Thread(target=monitor_logs, daemon=True)
+                monitoring_thread.start()
+
+                return jsonify({"status": "success", "message": "Training started using DIAMBRA CLI."})
+
             except Exception as e:
-                logger.error(f"Training error: {e}")
-                training_manager.stop_training()
+                logger.error(f"Error during training setup: {str(e)}", exc_info=True)
+                return jsonify({"status": "error", "message": f"Failed to start training: {str(e)}"}), 500
 
-        training_thread = threading.Thread(target=run_training, daemon=True)
-        training_thread.start()
 
-        return jsonify({
-            "status": "success",
-            "message": "Training started.",
-        })
 
+    def stop_containers(container_names):
+        """
+        Stop the given list of Docker containers.
+
+        :param container_names: List of container names to stop.
+        """
+        logger = app_logger.__class__("stop_containers")
+        for container_name in container_names:
+            try:
+                logger.info(f"Stopping container: {container_name}...")
+                subprocess.run(
+                    ["docker", "stop", container_name],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False  # Use check=False to suppress errors if container is already stopped
+                )
+                logger.info(f"Container '{container_name}' stopped.")
+            except Exception as e:
+                logger.error(f"Error stopping container '{container_name}': {str(e)}")
 
     @training_blueprint.route("/stop_training", methods=["POST"])
     def stop_training():
-        """Stop the training process."""
+        """Stop the training process and log monitoring."""
+        global monitoring_thread
+        global monitoring_active
+        global training_thread
+        global containers_to_stop
+
         with training_lock:
             if not training_manager.is_training_active():
                 return jsonify({"status": "not_running", "message": "Training is not running."})
 
             try:
+                # Stop log monitoring
+                if monitoring_thread and monitoring_thread.is_alive():
+                    logger.info("Stopping log monitoring thread...")
+                    monitoring_active = False
+                    monitoring_thread.join()
+                    logger.info("Log monitoring stopped.")
+
+                # Stop the training thread
+                if training_thread and training_thread.is_alive():
+                    logger.info("Waiting for training thread to complete...")
+                    training_thread.join()
+                    logger.info("Training thread stopped.")
+
+                # Stop the training process
                 training_manager.stop_training()
                 logger.info("Training stop command executed.")
-                return jsonify({"status": "success", "message": "Training stopped successfully."})
+
+                # Stop all associated containers
+                stop_containers(containers_to_stop)
+                logger.info("All associated containers have been stopped.")
+
+                return jsonify({"status": "success", "message": "Training and log monitoring stopped successfully."})
             except Exception as e:
                 logger.error(f"Error stopping training: {e}")
                 return jsonify({"status": "error", "message": f"Failed to stop training: {str(e)}"})
@@ -207,6 +319,31 @@ def create_training_blueprint(training_manager, app_logger, ):
                 logger.error(f"Error resetting configuration: {e}")
                 return jsonify({"status": "error", "message": "Failed to reset configuration."}), 500
 
+
+    @training_blueprint.route("/update_game_environment", methods=["POST"])
+    def update_game_environment():
+        try:
+            data = request.get_json()
+            game_id = data.get("game_id")
+            if not game_id:
+                raise ValueError("Game ID is required.")
+
+            # Fetch and validate environment settings for the selected game
+            if game_id not in AVAILABLE_GAMES:
+                raise ValueError(f"Game ID '{game_id}' is not recognized.")
+
+            # Dynamically update ENV_SETTINGS based on the selected game
+            ENV_SETTINGS.update({
+                "game_id": game_id,
+                "difficulty": AVAILABLE_GAMES[game_id].get("difficulty", []),
+                "frame_shape": AVAILABLE_GAMES[game_id].get("frame_shape", []),
+                "filter_keys": get_filter_keys(game_id),
+            })
+
+            return jsonify({"status": "success", "env_settings": ENV_SETTINGS, "filter_keys": ENV_SETTINGS["filter_keys"]})
+        except Exception as e:
+            logger.error(f"Error updating game environment: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 400
 
 
     return training_blueprint

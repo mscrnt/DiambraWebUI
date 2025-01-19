@@ -112,7 +112,7 @@ def create_dashboard_blueprint(training_manager, app_logger):
 
             resolution = game_settings.get("resolution", (0, 0, 0))
             frame_shapes = [
-                {"value": f"{resolution[0]}, {resolution[1]}, {resolution[2]}", "label": f"Original ({resolution[0]}, {resolution[1]}, {resolution[2]})"},
+                {"value": "0, 0, 0", "label": f"Original ({resolution[0]}, {resolution[1]}, {resolution[2]})"},
                 {"value": f"{resolution[0] // 2}, {resolution[1] // 2}, 3", "label": f"Small RGB ({resolution[0] // 2}, {resolution[1] // 2}, 3)"},
                 {"value": f"{resolution[0] // 4}, {resolution[1] // 4}, 1", "label": f"Very Small Grayscale ({resolution[0] // 4}, {resolution[1] // 4}, 1)"},
             ]
@@ -120,7 +120,7 @@ def create_dashboard_blueprint(training_manager, app_logger):
             env_settings = {
                 "difficulty": list(range(1, game_settings.get("max_difficulty", 8) + 1)),
                 "frame_shape": frame_shapes,
-                "outfits": [f"Outfit {i}" for i in range(1, game_settings.get("max_outfits", 1) + 1)],
+                "outfits": list(range(1, game_settings.get("max_outfits", 1) + 1)),
                 "num_characters": game_settings.get("num_characters"),
                 "num_stages": game_settings.get("num_stages"),
                 "moves": game_settings.get("moves"),

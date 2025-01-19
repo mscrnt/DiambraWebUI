@@ -34,12 +34,13 @@ function initializeHeaderControls() {
     startButton.onclick = async () => {
         try {
             const config = collectTrainingConfig();
+            console.log("Final Config Sent to Backend:", config);  // Debug log
             const response = await fetch("/training/start_training", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(config),
             });
-
+    
             const result = await response.json();
             if (response.ok) {
                 alert(result.message || "Training started successfully!");
@@ -54,6 +55,8 @@ function initializeHeaderControls() {
             alert("Failed to start training.");
         }
     };
+    
+    
 
     // Stop training event
     stopButton.onclick = async () => {
@@ -176,6 +179,8 @@ function collectTrainingConfig() {
     const config = {
         training_config: {},
         hyperparameters: {},
+        wrapper_settings: {},
+        env_settings: {},
         wrappers: [],
         callbacks: [],
     };
@@ -184,31 +189,33 @@ function collectTrainingConfig() {
     document.querySelectorAll(".config-input").forEach((input) => {
         const name = input.name;
         const value = input.value;
+
         if (name.startsWith("hyperparameters")) {
             config.hyperparameters[name.split("[")[1].replace("]", "")] = value;
         } else if (name.startsWith("training_config")) {
             config.training_config[name.split("[")[1].replace("]", "")] = value;
+        } else if (name.startsWith("env_settings")) {
+            const key = name.split("[")[1].replace("]", "");
+            config.env_settings[key] = value;
         }
     });
 
     // Collect wrappers
-    document.querySelectorAll(".wrapper-checkbox").forEach((checkbox) => {
-        if (checkbox.checked) {
-            config.wrappers.push(checkbox.value); // Push the value, not dataset.key
-        }
+    document.querySelectorAll(".wrapper-checkbox:checked").forEach((checkbox) => {
+        config.wrappers.push(checkbox.value);
     });
 
     // Collect callbacks
-    document.querySelectorAll(".callback-checkbox").forEach((checkbox) => {
-        if (checkbox.checked) {
-            config.callbacks.push(checkbox.value); // Push the value, not dataset.key
-        }
+    document.querySelectorAll(".callback-checkbox:checked").forEach((checkbox) => {
+        config.callbacks.push(checkbox.value);
     });
 
     console.log("Collected Configuration:", config);
 
     return config;
 }
+
+
 
 
 document.addEventListener("DOMContentLoaded", async () => {

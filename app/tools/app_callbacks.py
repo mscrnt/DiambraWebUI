@@ -9,7 +9,7 @@ from diambra.arena.stable_baselines3.sb3_utils import AutoSave
 AutoSaveBlueprint = Blueprint(
     component_class=AutoSave,
     component_type="callback",
-    required=True,
+    required=False,
     default_params={
         "verbose": 1,
     },
@@ -26,7 +26,7 @@ AutoSaveBlueprint = Blueprint(
 
 class RenderCallback(BaseCallback):
     """
-    A callback to signal the TrainingManager when the model should be updated.
+    A callback to signal the TrainingManager when the model should be updated. 
     """
 
     def __init__(self, training_manager, verbose=0):
@@ -48,7 +48,7 @@ class RenderCallback(BaseCallback):
 RenderCallbackBlueprint = Blueprint(
     component_class=RenderCallback,
     component_type="callback",
-    required=True,
+    required=False,
     arg_map={
         "training_manager": "training_manager",  # Pass the TrainingManager directly
     },

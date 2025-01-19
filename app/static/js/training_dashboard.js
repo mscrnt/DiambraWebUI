@@ -628,7 +628,7 @@ async function initializeGameSelectListener(gameId) {
             characterInput.value = ""; // Clear the value
         }
 
-        // Fetch the updated environment settings
+        // Fetch the updated environment settings 
         const response = await fetch("/update_game_environment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

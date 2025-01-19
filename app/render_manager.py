@@ -17,7 +17,7 @@ frame_queue = queue.Queue(maxsize=50)
 
 def clear_frame_queue():
     """
-    Clears all frames from the frame queue.
+    Clears all frames from the frame queue. 
     """
     discarded_frames = 0
     while not frame_queue.empty():

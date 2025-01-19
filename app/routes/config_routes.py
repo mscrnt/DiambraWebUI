@@ -3,6 +3,7 @@
 from flask import Blueprint, jsonify, request
 from pathlib import Path
 import json
+from app import ENV_SETTINGS
 
 
 def create_config_blueprint(training_manager, app_logger):
@@ -24,7 +25,6 @@ def create_config_blueprint(training_manager, app_logger):
 
     @config_blueprint.route("/save_config", methods=["POST"])
     def save_config():
-        """Save a configuration."""
         data = request.json
         if not data:
             return jsonify({"status": "error", "message": "Invalid request payload."}), 400
@@ -47,6 +47,10 @@ def create_config_blueprint(training_manager, app_logger):
             }), 409
 
         try:
+            # Ensure `game_id` and `env_settings` are included
+            config_data["training_config"]["game_id"] = ENV_SETTINGS.get("game_id", "")
+            config_data["env_settings"] = ENV_SETTINGS.copy()
+
             with config_path.open("w") as f:
                 json.dump(config_data, f, indent=4)
             logger.info(f"Configuration '{config_name}' saved successfully.")
@@ -54,6 +58,7 @@ def create_config_blueprint(training_manager, app_logger):
         except Exception as e:
             logger.error(f"Error saving configuration '{config_name}': {e}")
             return jsonify({"status": "error", "message": f"Failed to save configuration '{config_name}'."}), 500
+
 
     @config_blueprint.route("/load_config/<name>", methods=["GET"])
     def load_config(name):

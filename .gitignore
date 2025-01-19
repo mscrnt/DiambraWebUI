@@ -8,3 +8,4 @@
 /app/routes/__pycache__/*.pyc
 *.log
 app/dimabra/credentials
+*.zip
