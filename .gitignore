@@ -10,3 +10,4 @@
 app/dimabra/credentials
 *.zip
 app/tmp/tmpfile_*.json
+app/tmp/training_manager_snapshot.pkl

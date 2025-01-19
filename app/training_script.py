@@ -17,6 +17,7 @@ sys.path.insert(1, os.path.join(project_root, "app"))
 
 from app.tools.utils import dynamic_load_blueprints, initialize_callbacks, apply_wrappers
 from app.log_manager import LogManager
+from app import DEFAULT_PATHS
 
 
 def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
@@ -252,6 +253,12 @@ def main():
     print("Active Configuration:")
     print(json.dumps(training_manager.active_config, indent=4))
 
+    # Ensure the TensorBoard log path is set
+    tensorboard_log_dir = training_config.get("tensorboard_log", DEFAULT_PATHS["tensorboard_log_dir"])
+    if not os.path.exists(tensorboard_log_dir):
+        os.makedirs(tensorboard_log_dir, exist_ok=True)
+    print(f"TensorBoard logs will be saved to: {tensorboard_log_dir}")
+
     # Log the loaded callbacks for debugging
     print(f"Loaded callbacks: {[type(cb).__name__ for cb in callback_instances]}")
 
@@ -315,7 +322,7 @@ def main():
         gamma=hyperparameters["gamma"],
         gae_lambda=hyperparameters["gae_lambda"],
         clip_range=linear_schedule(hyperparameters["clip_range_start"], hyperparameters["clip_range_end"]),
-        tensorboard_log=training_config.get("tensorboard_log"),
+        tensorboard_log=tensorboard_log_dir,
         seed=hyperparameters.get("seed"),
         device=hyperparameters["device"],
     )

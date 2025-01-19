@@ -230,14 +230,8 @@ def create_training_blueprint(training_manager, app_logger, ):
     @training_blueprint.route("/render_status", methods=["GET"])
     def render_status():
         """Check if rendering is active."""
-        with training_lock:
-            try:
-                rendering = training_manager.render_manager.is_rendering() if training_manager.render_manager else False
-                logger.debug(f"Render status checked: rendering={rendering}")
-                return jsonify({"rendering": rendering})
-            except Exception as e:
-                logger.error(f"Error checking render status: {e}")
-                return jsonify({"status": "error", "message": "Failed to check rendering status."}), 500
+        # return dummy response for now
+        return jsonify({"rendering": False})
             
     @training_blueprint.route('/shader_status', methods=['GET'])
     def shader_status():

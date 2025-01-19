@@ -1,7 +1,6 @@
 # path: ./app/training_manager.py
 
 from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS, ENV_SETTINGS, WRAPPER_SETTINGS
-from app.render_manager import RenderManager
 from app.log_manager import LogManager
 from app.tools.utils import dynamic_load_blueprints, filter_config
 from stable_baselines3 import PPO
@@ -43,11 +42,9 @@ class TrainingManager:
         self.training_active_event.clear()
         self.model_updated_flag = threading.Event()
         self.model_updated_flag.clear()
-        self.render_manager = None
         self.model = None
         self.env = None
         self.num_envs = int(self.config["training_config"].get("num_envs", 1))
-        self.render_env_num_envs = 1
         self.wrapper_blueprints = {}
         self.callback_blueprints = {}
         self.callback_instances = []
@@ -94,7 +91,6 @@ class TrainingManager:
             if name in self.config.get("enabled_callbacks", [])
         ]
         # Remove non-pickleable objects
-        state.pop("render_manager", None)
         state.pop("model", None)
         state.pop("env", None)
         state.pop("training_active_event", None)
@@ -104,7 +100,6 @@ class TrainingManager:
     def __setstate__(self, state):
         """Restore the state from unpickling."""
         self.__dict__.update(state)
-        self.render_manager = None
         self.model = None
         self.env = None
         self.training_active_event = threading.Event()
@@ -209,11 +204,9 @@ class TrainingManager:
         }
 
     def stop_training(self):
-        """Stop training and rendering gracefully."""
+        """Stop training gracefully."""
         logger.info("Stopping training...")
         self.training_active_event.clear()
-        if self.render_manager:
-            self.render_manager.stop()
         logger.info("Training stopped.")
 
     def is_training_active(self):
@@ -254,14 +247,6 @@ class TrainingManager:
         # Initialize environments and model
         self._initialize_environments_and_model()
 
-        # Initialize the RenderManager
-        self.render_manager = RenderManager(
-            render_env=self.render_env,
-            model=self.model,
-            training_active_flag=self.is_training_active,
-            model_updated_flag=self.model_updated_flag,
-            shader_settings_flag=lambda: self.shader_settings,  # Dynamically fetch shader states
-        )
 
     def update_config(self, new_config):
         """Update the training configuration with a new configuration."""
@@ -425,12 +410,6 @@ class TrainingManager:
             logger.debug(f"Filtered training configuration: {filtered_training_config}")
             logger.debug(f"Filtered wrapper configuration: {filtered_wrapper_config}")
 
-            # Create render environment
-            self.render_env, self.render_env_num_envs = make_sb3_env(
-                self.config["training_config"]["game_id"],
-                load_settings_flat_dict(EnvironmentSettings, filtered_training_config),
-                load_settings_flat_dict(WrappersSettings, filtered_wrapper_config),
-            )
 
             # Create training environments
             self.env, self.num_envs = make_sb3_env(
@@ -467,11 +446,10 @@ class TrainingManager:
 
 
     def start_training(self):
-        """Start the training loop and rendering."""
+        """Start the training loop."""
         logger.info("Starting training process...")
         self.training_active_event.set()
         try:
-            self.render_manager.start()
             logger.debug(f"Training loop active: {self.is_training_active()}")
             self.model.learn(
                 total_timesteps=self.config.get("total_timesteps", 32000000),
