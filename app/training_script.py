@@ -9,6 +9,7 @@ from diambra.arena.stable_baselines3.sb3_utils import linear_schedule
 from stable_baselines3.common.callbacks import CallbackList
 import os
 import pickle
+import signal
 
 # Add the project root directory and the `app` directory to `sys.path`
 project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -224,9 +225,25 @@ def load_from_pickle(file_path):
         print(f"Failed to load object from {file_path}: {e}")
         raise RuntimeError(f"Failed to load object from {file_path}: {e}")
 
+def signal_handler(signum, frame):
+    """Handles termination signals (e.g., SIGTERM, SIGINT)."""
+    global agent, env, save_path
+    print(f"\nReceived termination signal: {signum}. Cleaning up...")
+    if agent and save_path:
+        model_path = os.path.join(save_path, "last_model.zip")
+        print(f"Saving the model to: {model_path}")
+        agent.save(model_path)
+    print("Cleanup complete. Exiting.")
+    sys.exit(0)
 
 def main():
     """Main function for setting up and training the PPO agent."""
+    global agent, env, save_path
+
+    # Register signal handlers for SIGTERM and SIGINT
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     if len(sys.argv) < 2:
         print("Usage: python training_script.py <pickle_file_path>")
         sys.exit(1)
@@ -253,10 +270,13 @@ def main():
     print("Active Configuration:")
     print(json.dumps(training_manager.active_config, indent=4))
 
-    # Ensure the TensorBoard log path is set
+    # Ensure the TensorBoard log path and save path are set
+    save_path = training_config.get("save_path", DEFAULT_PATHS["save_path"])
+    os.makedirs(save_path, exist_ok=True)
+    print(f"Model checkpoints will be saved to: {save_path}")
+
     tensorboard_log_dir = training_config.get("tensorboard_log", DEFAULT_PATHS["tensorboard_log_dir"])
-    if not os.path.exists(tensorboard_log_dir):
-        os.makedirs(tensorboard_log_dir, exist_ok=True)
+    os.makedirs(tensorboard_log_dir, exist_ok=True)
     print(f"TensorBoard logs will be saved to: {tensorboard_log_dir}")
 
     # Log the loaded callbacks for debugging
@@ -265,12 +285,9 @@ def main():
     # Convert `action_space` to SpaceTypes
     if "action_space" in env_settings:
         action_space_value = env_settings["action_space"].lower()
-        if action_space_value == "discrete":
-            env_settings["action_space"] = SpaceTypes.DISCRETE
-        elif action_space_value == "multi_discrete":
-            env_settings["action_space"] = SpaceTypes.MULTI_DISCRETE
-        else:
-            raise ValueError(f"Invalid action_space value: {action_space_value}. Must be 'discrete' or 'multi_discrete'.")
+        env_settings["action_space"] = (
+            SpaceTypes.DISCRETE if action_space_value == "discrete" else SpaceTypes.MULTI_DISCRETE
+        )
 
     # Convert settings to objects
     env_settings_obj = load_settings_flat_dict(EnvironmentSettings, env_settings)
@@ -315,13 +332,13 @@ def main():
         "MultiInputPolicy",
         env,
         verbose=1,
-        learning_rate=linear_schedule(hyperparameters["learning_rate_start"], hyperparameters["learning_rate_end"]),
+        learning_rate=hyperparameters["learning_rate"],
         n_steps=hyperparameters["n_steps"],
         batch_size=hyperparameters["batch_size"],
         n_epochs=hyperparameters["n_epochs"],
         gamma=hyperparameters["gamma"],
         gae_lambda=hyperparameters["gae_lambda"],
-        clip_range=linear_schedule(hyperparameters["clip_range_start"], hyperparameters["clip_range_end"]),
+        clip_range=hyperparameters["clip_range"],
         tensorboard_log=tensorboard_log_dir,
         seed=hyperparameters.get("seed"),
         device=hyperparameters["device"],
@@ -332,10 +349,32 @@ def main():
     print(f"CallbackList contains: {[type(cb).__name__ for cb in callback_list.callbacks]}")
 
     print("Starting training...")
-    agent.learn(total_timesteps=int(training_config["total_timesteps"]), callback=callback_list)
-    env.close()
-    print("Training complete. Environment closed.")
+    try:
+        agent.learn(total_timesteps=int(training_config["total_timesteps"]), callback=callback_list)
+    except KeyboardInterrupt:
+        print("\nraining interrupted by user.")
+    except Exception as e:
+        print(f"")
+    finally:
+        print("Saving the model before exiting...")
+        try:
+            agent.save(os.path.join(save_path, "last_model.zip"))
+            print(f"Model saved to: {os.path.join(save_path, 'last_model.zip')}")
+        except Exception as e:
+            print(f"Failed to save model: {e}")
+        if env:
+            print("Closing the environment...")
+            try:
+                print("Environment closed.")
+            except Exception as e:
+                print(f"Failed to close environment: {e}")
+    print("Training complete. Exiting.")
+    print("Please ignore the 'No such container' error messages...")
 
+    try:
+        env.close()
+    except Exception as e:
+        print(f"")
 
 if __name__ == "__main__":
-    main() 
+    main()

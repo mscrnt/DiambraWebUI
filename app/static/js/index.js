@@ -15,26 +15,27 @@ function initializeHeaderControls() {
 
     // Update the UI status
     const updateStatus = (isTraining, isRendering) => {
+        console.log("Updating status:", { isTraining, isRendering }); // Debug log
         statusText.textContent = isTraining ? "Running" : "Stopped";
         statusText.style.color = isTraining ? "#28a745" : "#007BFF"; // Green for Running, Blue for Stopped
         startButton.disabled = isTraining;
         stopButton.disabled = !isTraining;
-
-        // Update video feed visibility if elements exist
+    
         if (videoPlaceholder && videoFeed) {
             videoPlaceholder.style.display = isRendering ? "none" : "block";
             videoFeed.style.display = isRendering ? "block" : "none";
         }
-
-        // Update the document title
+    
         document.title = isTraining ? "Training in Progress" : "Training Stopped";
     };
+    
 
     // Start training event
     startButton.onclick = async () => {
+        startButton.disabled = true; // Immediately disable button
         try {
             const config = collectTrainingConfig();
-            console.log("Final Config Sent to Backend:", config);  // Debug log
+            console.log("Starting training with config:", config);
             const response = await fetch("/training/start_training", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -53,19 +54,20 @@ function initializeHeaderControls() {
         } catch (error) {
             console.error("Error starting training:", error);
             alert("Failed to start training.");
+        } finally {
+            startButton.disabled = false; // Re-enable after completion
         }
     };
     
     
-
     // Stop training event
     stopButton.onclick = async () => {
+        updateStatus(false, false); // Set UI to "Stopped" immediately
         try {
             const response = await fetch("/training/stop_training", { method: "POST" });
             const result = await response.json();
             if (response.ok) {
                 alert(result.message || "Training stopped successfully!");
-                updateStatus(false, false);
             } else {
                 console.error(result.message);
                 alert(`Error: ${result.message}`);
@@ -73,8 +75,16 @@ function initializeHeaderControls() {
         } catch (error) {
             console.error("Error stopping training:", error);
             alert("Failed to stop training.");
+        } finally {
+            const status = await pollTrainingStatus(); // Fetch final status
+            if (!status) {
+                clearInterval(renderPollingInterval); // Stop rendering polling
+            }
         }
     };
+    
+    
+
 
     // Poll rendering status
     const pollRenderStatus = async () => {
@@ -87,18 +97,38 @@ function initializeHeaderControls() {
             console.error("Error polling render status:", error);
         }
     };
+    
+
+    let trainingStatusPollingInterval;
 
     // Poll training status
     const pollTrainingStatus = async () => {
         try {
             const response = await fetch("/training/training_status");
+            if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+    
             const { training } = await response.json();
+            console.log("Polling training status:", { training });
+    
+            // Update UI status
             updateStatus(training, false);
+    
+            // Stop polling if training has stopped
+            if (!training && trainingStatusPollingInterval) {
+                clearInterval(trainingStatusPollingInterval);
+                trainingStatusPollingInterval = null;
+            }
         } catch (error) {
             console.error("Error polling training status:", error);
             updateStatus(false, false);
         }
     };
+    
+
+    // Start polling every 3 seconds
+    if (!trainingStatusPollingInterval) {
+        trainingStatusPollingInterval = setInterval(pollTrainingStatus, 3000);
+    }
 
     // Initial status checks
     (async () => {

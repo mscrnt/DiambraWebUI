@@ -13,10 +13,12 @@ from app import (
 from app.tools.filter_keys import get_filter_keys
 import os
 import subprocess
-import tempfile
 import json
 import gc
 from app.tools.utils import save_to_pickle
+import signal
+import platform
+import time
 
 enable_crt_shader = False
 
@@ -59,28 +61,36 @@ def create_training_blueprint(training_manager, app_logger, ):
         }
         return {key: safe_serialize(value) for key, value in serialized_config.items()}
     
+
+
     @training_blueprint.route("/start_training", methods=["POST"])
     def start_training():
         """Start the training process."""
-        global monitoring_thread, monitoring_active
+        global monitoring_thread, monitoring_active, training_process
         gc.collect()  # Run garbage collection to free up memory
 
         with training_lock:
             if training_manager.is_training_active():
                 return jsonify({"status": "running", "message": "Training is already in progress."})
+            
+            # Set training manager to active state
+            training_manager.start_training()
 
             try:
                 data = request.get_json() or {}
                 logger.debug(f"Received training data: {json.dumps(data, indent=4)}")
 
+                # Validate ROMs path
                 roms_path = data.get("roms_path", DEFAULT_PATHS["roms_path"])
                 if not os.path.exists(roms_path):
                     return jsonify({"status": "error", "message": f"ROMs path does not exist: {roms_path}"}), 400
 
+                # Validate number of environments
                 num_envs = int(data.get("training_config", {}).get("num_envs", 1))
                 if num_envs < 1:
                     return jsonify({"status": "error", "message": "Number of environments must be at least 1."}), 400
 
+                # Update training configuration
                 updated_config = {
                     "training_config": data.get("training_config", {}),
                     "hyperparameters": data.get("hyperparameters", {}),
@@ -116,7 +126,6 @@ def create_training_blueprint(training_manager, app_logger, ):
                     str(num_envs),
                     "--path.roms",
                     roms_path,
-                    "--interactive=false",
                     "--env.preallocateport",
                     python_executable,
                     script_path,
@@ -124,25 +133,43 @@ def create_training_blueprint(training_manager, app_logger, ):
                 ]
                 logger.info(f"DIAMBRA CLI command: {' '.join(command)}")
 
-                def monitor_logs():
+                # Monitor logs and manage subprocess
+                def monitor_logs(): 
+                    global training_process
                     logger.info("Starting DIAMBRA CLI log monitoring...")
                     try:
-                        with subprocess.Popen(
-                            command,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            text=True,
-                            bufsize=1,
-                            encoding="utf-8",
-                        ) as process:
-                            for line in process.stdout:
-                                if line.strip():
-                                    logger.info(f"[diambra_cli] {line.strip()}")
-                            process.wait()
-                            if process.returncode != 0:
-                                logger.error(f"DIAMBRA CLI exited with return code {process.returncode}.")
+                        if platform.system() == "Windows":
+                            # Use creationflags to create a new process group on Windows
+                            training_process = subprocess.Popen(
+                                command,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT,
+                                text=True,
+                                bufsize=1,
+                                encoding="utf-8",
+                                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                            )
+                        else:
+                            # Use preexec_fn to create a new process group on Unix
+                            training_process = subprocess.Popen(
+                                command,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT,
+                                text=True,
+                                bufsize=1,
+                                encoding="utf-8",
+                                preexec_fn=os.setsid
+                            )
+                        for line in training_process.stdout:
+                            if line.strip():
+                                logger.info(f"[diambra_cli] {line.strip()}")
+                        training_process.wait()
+                        if training_process.returncode != 0:
+                            logger.error(f"DIAMBRA CLI exited with return code {training_process.returncode}.")
                     except Exception as e:
                         logger.error(f"Error monitoring logs: {str(e)}")
+                    finally:
+                        training_process = None  # Ensure process reference is cleared
 
                 monitoring_active = True
                 monitoring_thread = threading.Thread(target=monitor_logs, daemon=True)
@@ -155,6 +182,60 @@ def create_training_blueprint(training_manager, app_logger, ):
                 return jsonify({"status": "error", "message": f"Failed to start training: {str(e)}"}), 500
 
 
+    @training_blueprint.route("/stop_training", methods=["POST"])
+    def stop_training():
+        """Stop the DIAMBRA Arena and let it handle training termination."""
+        global monitoring_thread, monitoring_active
+
+        with training_lock:
+            if not training_manager.is_training_active(): 
+                return jsonify({"status": "not_running", "message": "Training is not running."})
+
+            try:
+                # Stop log monitoring
+                if monitoring_thread and monitoring_thread.is_alive():
+                    logger.info("Stopping log monitoring thread...")
+                    monitoring_active = False
+                    monitoring_thread.join(timeout=5)
+                    logger.info("Log monitoring thread stopped.") 
+
+                # Stop DIAMBRA Arena
+                logger.info("Stopping DIAMBRA Arena using `diambra arena down` command.")
+                try:
+                    result = subprocess.run(
+                        ["diambra", "arena", "down"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        check=True,
+                    )
+                    logger.info(f"DIAMBRA Arena stopped successfully:\n{result.stdout}")
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to stop DIAMBRA Arena:\n{e.stderr}")
+                    return jsonify({"status": "error", "message": f"Failed to stop DIAMBRA Arena: {e.stderr}"}), 500
+
+                # wait 10 seconds for the training process to stop
+                stop_time = time.time() + 10
+                while time.time() < stop_time:
+                    if training_process is None:
+                        break
+                    time.sleep(0.1)
+
+                # Stop the training manager and ensure status is updated
+                training_manager.stop_training()
+                logger.info("Training stopped and status updated.")
+
+                # Double-check that the training manager reflects the "stopped" state
+                if training_manager.is_training_active():
+                    logger.error("Training manager still reports active after stop command!")
+                    return jsonify({"status": "error", "message": "Failed to stop training process completely."}), 500
+
+                return jsonify({"status": "success", "message": "Training and DIAMBRA Arena stopped successfully."})
+            except Exception as e:
+                logger.error(f"")
+                return jsonify({"status": "error", "message": f"Failed to stop training: {str(e)}"}), 500
+
+
     def stop_containers(container_names):
         """
         Stop the given list of Docker containers.
@@ -165,67 +246,31 @@ def create_training_blueprint(training_manager, app_logger, ):
         for container_name in container_names:
             try:
                 logger.info(f"Stopping container: {container_name}...")
-                subprocess.run(
+                result = subprocess.run(
                     ["docker", "stop", container_name],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    check=False  # Use check=False to suppress errors if container is already stopped
+                    check=False  # Suppress errors if the container is already stopped
                 )
-                logger.info(f"Container '{container_name}' stopped.")
+                if result.returncode == 0:
+                    logger.info(f"Container '{container_name}' stopped successfully.")
+                else:
+                    logger.warning(f"Failed to stop container '{container_name}': {result.stderr}")
             except Exception as e:
                 logger.error(f"Error stopping container '{container_name}': {str(e)}")
 
-    @training_blueprint.route("/stop_training", methods=["POST"])
-    def stop_training():
-        """Stop the training process and log monitoring."""
-        global monitoring_thread
-        global monitoring_active
-        global training_thread
-        global containers_to_stop
 
-        with training_lock:
-            if not training_manager.is_training_active():
-                return jsonify({"status": "not_running", "message": "Training is not running."})
-
-            try:
-                # Stop log monitoring
-                if monitoring_thread and monitoring_thread.is_alive():
-                    logger.info("Stopping log monitoring thread...")
-                    monitoring_active = False
-                    monitoring_thread.join()
-                    logger.info("Log monitoring stopped.")
-
-                # Stop the training thread
-                if training_thread and training_thread.is_alive():
-                    logger.info("Waiting for training thread to complete...")
-                    training_thread.join()
-                    logger.info("Training thread stopped.")
-
-                # Stop the training process
-                training_manager.stop_training()
-                logger.info("Training stop command executed.")
-
-                # Stop all associated containers
-                stop_containers(containers_to_stop)
-                logger.info("All associated containers have been stopped.")
-
-                return jsonify({"status": "success", "message": "Training and log monitoring stopped successfully."})
-            except Exception as e:
-                logger.error(f"Error stopping training: {e}")
-                return jsonify({"status": "error", "message": f"Failed to stop training: {str(e)}"})
-
-    @training_blueprint.route("/training_status", methods=["GET"]) 
+    @training_blueprint.route("/training_status", methods=["GET"])
     def training_status():
         """Return the current training status."""
-        with training_lock:
-            try:
-                training_active = training_manager.is_training_active()
-                logger.debug(f"Training status checked: active={training_active}")
-                return jsonify({"training": training_active})
-            except Exception as e:
-                logger.error(f"Error checking training status: {e}") 
-                return jsonify({"status": "error", "message": "Failed to check training status."}), 500
+        try:
+            is_training_active = training_manager.is_training_active()
+            logger.debug(f"Training status checked: {'Running' if is_training_active else 'Stopped'}")
+            return jsonify({"training": is_training_active})
+        except Exception as e:
+            logger.error(f"Error fetching training status: {str(e)}", exc_info=True)
+            return jsonify({"status": "error", "message": f"Failed to fetch training status: {str(e)}"}), 500
 
     @training_blueprint.route("/render_status", methods=["GET"])
     def render_status():
@@ -235,7 +280,7 @@ def create_training_blueprint(training_manager, app_logger, ):
             
     @training_blueprint.route('/shader_status', methods=['GET'])
     def shader_status():
-        """Return current shader settings."""
+        """Return current shader settings.""" 
         try:
             return jsonify(shaderSettings=training_manager.get_shader_settings())
         except Exception as e:

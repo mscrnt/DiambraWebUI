@@ -213,17 +213,6 @@ class TrainingManager:
         """Check if training is active."""
         return self.training_active_event.is_set()
 
-    def is_model_updated(self):
-        """Check if the model has been updated."""
-        return self.model_updated_flag.is_set()
-
-    def clear_model_updated(self):
-        """Clear the model updated flag."""
-        self.model_updated_flag.clear()
-
-    def set_model_updated(self):
-        """Set the model updated flag."""
-        self.model_updated_flag.set()
 
     def initialize_training(self):
         """Initialize training configurations, environments, and the model."""
@@ -243,9 +232,6 @@ class TrainingManager:
 
         # Initialize callbacks and wrappers
         self._initialize_callbacks_and_wrappers()
-
-        # Initialize environments and model
-        self._initialize_environments_and_model()
 
 
     def update_config(self, new_config):
@@ -396,66 +382,8 @@ class TrainingManager:
         logger.debug(f"Serialized Callbacks: {json.dumps(serialized_callbacks, indent=4)}")
 
 
-    def _initialize_environments_and_model(self):
-        """Initialize the environment and the model."""
-        try:
-            # Filter training_config for valid EnvironmentSettings fields
-            valid_env_keys = set(EnvironmentSettings.__annotations__.keys())
-            filtered_training_config = filter_config(self.config["training_config"], valid_env_keys)
-
-            # Filter hyperparameters for valid WrappersSettings fields
-            valid_wrapper_keys = set(WrappersSettings.__annotations__.keys())
-            filtered_wrapper_config = filter_config(self.config["hyperparameters"], valid_wrapper_keys)
-
-            logger.debug(f"Filtered training configuration: {filtered_training_config}")
-            logger.debug(f"Filtered wrapper configuration: {filtered_wrapper_config}")
-
-
-            # Create training environments
-            self.env, self.num_envs = make_sb3_env(
-                self.config["training_config"]["game_id"],
-                load_settings_flat_dict(EnvironmentSettings, filtered_training_config),
-                load_settings_flat_dict(WrappersSettings, filtered_wrapper_config),
-            )
-
-            # Create PPO model
-            self.model = PPO(
-                "MultiInputPolicy",
-                self.env,
-                verbose=1,
-                gamma=self.config["hyperparameters"]["gamma"],
-                n_steps=self.config["hyperparameters"]["n_steps"],
-                batch_size=self.config["hyperparameters"]["batch_size"],
-                n_epochs=self.config["hyperparameters"]["n_epochs"],
-                learning_rate=self.config["hyperparameters"]["learning_rate"],
-                clip_range=self.config["hyperparameters"]["clip_range"],
-                clip_range_vf=self.config["hyperparameters"].get("clip_range_vf"),
-                normalize_advantage=self.config["hyperparameters"]["normalize_advantage"],
-                ent_coef=self.config["hyperparameters"]["ent_coef"],
-                vf_coef=self.config["hyperparameters"]["vf_coef"],
-                max_grad_norm=self.config["hyperparameters"]["max_grad_norm"],
-                policy_kwargs=self.config["hyperparameters"]["policy_kwargs"],
-                target_kl=self.config["hyperparameters"]["target_kl"],
-                tensorboard_log=self.config["training_config"]["tensorboard_log"],
-                seed=self.config["hyperparameters"]["seed"],
-                device=self.config["hyperparameters"]["device"],
-            )
-        except Exception as e:
-            logger.error("Error initializing environments or model.", exc_info=True)
-            raise
-
 
     def start_training(self):
         """Start the training loop."""
         logger.info("Starting training process...")
         self.training_active_event.set()
-        try:
-            logger.debug(f"Training loop active: {self.is_training_active()}")
-            self.model.learn(
-                total_timesteps=self.config.get("total_timesteps", 32000000),
-                callback=CallbackList(self.callback_instances),
-            )
-        except Exception as e:
-            logger.error(f"An error occurred during training: {e}")
-        finally:
-            self.stop_training()
