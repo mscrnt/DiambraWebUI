@@ -204,7 +204,6 @@ async function resetToDefaultConfig() {
 }
 
 
-// Collect training configuration from the UI
 function collectTrainingConfig() {
     const config = {
         training_config: {},
@@ -215,36 +214,43 @@ function collectTrainingConfig() {
         callbacks: [],
     };
 
-    // Collect training and hyperparameters input values
+    // ✅ Collect all input values, including dropdowns and checkboxes
     document.querySelectorAll(".config-input").forEach((input) => {
         const name = input.name;
-        const value = input.value;
+        let value;
+
+        // Handle checkboxes separately
+        if (input.type === "checkbox") {
+            value = input.checked;
+        } else {
+            value = input.value;
+        }
 
         if (name.startsWith("hyperparameters")) {
-            config.hyperparameters[name.split("[")[1].replace("]", "")] = value;
+            config.hyperparameters[name.split("[")[1].replace("]", "").trim()] = value;
         } else if (name.startsWith("training_config")) {
-            config.training_config[name.split("[")[1].replace("]", "")] = value;
+            config.training_config[name.split("[")[1].replace("]", "").trim()] = value;
         } else if (name.startsWith("env_settings")) {
-            const key = name.split("[")[1].replace("]", "");
+            const key = name.split("[")[1].replace("]", "").trim();
             config.env_settings[key] = value;
+        } else if (name.startsWith("wrapper_settings")) {
+            const key = name.split("[")[1].replace("]", "").trim();
+            config.wrapper_settings[key] = value;
         }
     });
 
-    // Collect wrappers
-    document.querySelectorAll(".wrapper-checkbox:checked").forEach((checkbox) => {
-        config.wrappers.push(checkbox.value);
+    // ✅ Collect checked wrappers and callbacks
+    document.querySelectorAll(".wrapper-checkbox").forEach((checkbox) => {
+        if (checkbox.checked) config.wrappers.push(checkbox.value);
     });
 
-    // Collect callbacks
-    document.querySelectorAll(".callback-checkbox:checked").forEach((checkbox) => {
-        config.callbacks.push(checkbox.value);
+    document.querySelectorAll(".callback-checkbox").forEach((checkbox) => {
+        if (checkbox.checked) config.callbacks.push(checkbox.value);
     });
 
-    console.log("Collected Configuration:", config);
-
+    console.log("✅ Full Collected Configuration:", config);
     return config;
 }
-
 
 
 

@@ -45,29 +45,8 @@ class TrainingManager:
         self.callback_instances = []
         self.selected_wrappers = []
         self.load_blueprints = dynamic_load_blueprints
-        self.shader_settings = {
-            "radial_distortion": False,
-            "scanlines": False,
-            "dot_mask": False,
-            "rolling_lines": False,
-            "gamma_correction": False,
-        }
-        
 
-    def get_shader_settings(self):
-        """Get the current shader settings."""
-        return self.shader_settings
 
-    def toggle_shader(self, key, enabled):
-        """Toggle a specific shader setting."""
-        if key not in self.shader_settings:
-            raise ValueError(f"Invalid shader key: {key}")
-        self.shader_settings[key] = enabled
-
-    def toggle_all_shaders(self, enable_all):
-        """Enable or disable all shader settings."""
-        for key in self.shader_settings:
-            self.shader_settings[key] = enable_all
 
     def __getstate__(self):
         """Prepare the state for pickling."""
@@ -116,29 +95,31 @@ class TrainingManager:
     def set_active_config(self, config):
         """Set the active configuration, ensuring all fields are properly updated."""
         try:
-            # Validate critical fields like game_id
+            # Ensure `game_id` is present
             if "game_id" not in config.get("training_config", {}):
                 raise ValueError("Missing 'game_id' in training configuration.")
 
-            # Merge the new configuration with defaults to ensure completeness
+            # Merge updates while preserving defaults
             self.active_config = {
                 "config": {
                     "training_config": {**self.default_config["training_config"], **config.get("training_config", {})},
                     "hyperparameters": {**self.default_config["hyperparameters"], **config.get("hyperparameters", {})},
                     "wrapper_settings": {**self.default_config["wrapper_settings"], **config.get("wrapper_settings", {})},
                     "env_settings": {**self.default_config["env_settings"], **config.get("env_settings", {})},
-                    "enabled_wrappers": config.get("enabled_wrappers", self.default_config["enabled_wrappers"]),
-                    "enabled_callbacks": config.get("enabled_callbacks", self.default_config["enabled_callbacks"]),
+                    "enabled_wrappers": list(set(config.get("enabled_wrappers", self.default_config["enabled_wrappers"]))),
+                    "enabled_callbacks": list(set(config.get("enabled_callbacks", self.default_config["enabled_callbacks"]))),
                 },
                 "use_active": True,
             }
 
-            logger.info("Active configuration updated successfully.")
+            logger.info("✅ Active configuration updated successfully.")
             logger.debug(f"Active configuration: {json.dumps(self.active_config['config'], indent=4)}")
 
         except Exception as e:
-            logger.error(f"Failed to set active configuration: {str(e)}", exc_info=True)
+            logger.error(f"❌ Failed to set active configuration: {str(e)}", exc_info=True)
             raise
+
+
 
     def get_active_config(self):
         """

@@ -70,7 +70,7 @@ async function initializeTooltips() {
 function initializeConfigManager() {
     let isUnsaved = false;
 
-    // Fetch and populate available configurations
+    // ✅ Fetch and populate available configurations
     async function fetchConfigs() {
         try {
             const response = await fetch("/config/list_configs");
@@ -86,13 +86,13 @@ function initializeConfigManager() {
                 configSelect.appendChild(option);
             });
 
-            console.log("Configurations fetched and populated.");
+            console.log("✅ Configurations fetched and populated.");
         } catch (error) {
-            console.error("Failed to fetch configurations:", error);
+            console.error("❌ Failed to fetch configurations:", error);
         }
     }
 
-    // Mark configuration as unsaved
+    // ✅ Track changes to mark config as unsaved
     function markUnsaved() {
         const configSelect = document.getElementById("config-select");
         const currentConfig = configSelect.value;
@@ -117,33 +117,30 @@ function initializeConfigManager() {
         }
     }
 
-    // Add change listeners to inputs
+    // ✅ Add change listeners to track updates
     function addChangeListeners() {
         const inputs = document.querySelectorAll(".config-input, .wrapper-checkbox, .callback-checkbox");
         inputs.forEach((input) => input.addEventListener("change", markUnsaved));
     }
 
-    // Load the default configuration
+    // ✅ Load the default configuration
     async function loadDefaultConfig() {
         try {
             const response = await fetch("/config/load_default_config");
             const { config } = await response.json();
-    
+
             if (response.ok) {
                 populateFields(config);
-                alert("Default configuration loaded successfully.");
+                console.log("✅ Default configuration loaded.");
             } else {
-                console.error(config.message || "Failed to load default configuration.");
-                alert("Failed to load default configuration.");
+                console.error("❌ Failed to load default configuration:", config.message);
             }
         } catch (error) {
-            console.error("Error loading default configuration:", error);
-            alert("Failed to load default configuration.");
+            console.error("❌ Error loading default configuration:", error);
         }
     }
-    
 
-    // Load a selected configuration
+    // ✅ Load a selected configuration
     async function loadSelectedConfig() {
         const configName = document.getElementById("config-select").value;
 
@@ -158,66 +155,70 @@ function initializeConfigManager() {
 
             if (response.ok) {
                 populateFields(config);
-                alert(`Configuration '${configName}' loaded successfully.`);
+                console.log(`✅ Configuration '${configName}' loaded.`);
             } else {
-                console.error(config.message || "Failed to load configuration.");
-                alert("Failed to load configuration.");
+                console.error("❌ Failed to load configuration:", config.message);
             }
         } catch (error) {
-            console.error("Error loading configuration:", error);
-            alert("Failed to load configuration.");
+            console.error("❌ Error loading configuration:", error);
         }
     }
 
-    // Populate the fields with the configuration data
+    // ✅ Populate the fields with the configuration data
     function populateFields(config) {
-        // Populate training config fields
+        if (!config) return;
+
+        // ✅ Populate training config fields
         Object.entries(config.training_config || {}).forEach(([key, value]) => {
             const input = document.querySelector(`[name="training_config[${key}]"]`);
             if (input) {
-                if (input.tagName === "SELECT") {
-                    input.value = value !== undefined && value !== null ? value.toString() : "False";
-                } else {
-                    input.value = value !== undefined && value !== null ? value : "";
-                }
+                input.value = value !== undefined && value !== null ? value : "";
             }
         });
 
-        // Populate hyperparameters fields
+        // ✅ Populate hyperparameters fields
         Object.entries(config.hyperparameters || {}).forEach(([key, value]) => {
             const input = document.querySelector(`[name="hyperparameters[${key}]"]`);
             if (input) {
-                if (input.type === "number" && value !== null && value !== undefined) {
-                    input.value = parseFloat(value); // Ensure numeric inputs have numeric values
-                } else {
-                    input.value = value !== undefined && value !== null ? value : "";
-                }
+                input.value = value !== undefined && value !== null ? value : "";
             }
         });
 
-        // Populate wrapper checkboxes
+        // ✅ Populate environment settings
+        Object.entries(config.env_settings || {}).forEach(([key, value]) => {
+            const input = document.querySelector(`[name="env_settings[${key}]"]`);
+            if (input) {
+                input.value = value !== undefined && value !== null ? value : "";
+            }
+        });
+
+        // ✅ Populate wrapper settings
+        Object.entries(config.wrapper_settings || {}).forEach(([key, value]) => {
+            const input = document.querySelector(`[name="wrapper_settings[${key}]"]`);
+            if (input) {
+                input.value = value !== undefined && value !== null ? value : "";
+            }
+        });
+
+        // ✅ Set checked wrappers and callbacks
         document.querySelectorAll(".wrapper-checkbox").forEach((checkbox) => {
-            const wrapperName = checkbox.value;
-            checkbox.checked = config.enabled_wrappers?.includes(wrapperName) || checkbox.hasAttribute("disabled");
+            checkbox.checked = config.wrappers.includes(checkbox.value);
         });
 
-        // Populate callback checkboxes
         document.querySelectorAll(".callback-checkbox").forEach((checkbox) => {
-            const callbackName = checkbox.value;
-            checkbox.checked = config.enabled_callbacks?.includes(callbackName) || checkbox.hasAttribute("disabled");
+            checkbox.checked = config.callbacks.includes(checkbox.value);
         });
 
-        console.log("Configuration fields populated successfully.");
+        console.log("✅ Configuration fields populated successfully.");
     }
 
-
-    // Save the current configuration
+    // ✅ Save the current configuration
     async function saveCurrentConfig() {
         const configSelect = document.getElementById("config-select");
         const currentConfig = configSelect.value;
 
         if (currentConfig === "default") {
-            alert("Cannot overwrite the Default configuration.");
+            alert("❌ Cannot overwrite the Default configuration.");
             return;
         }
 
@@ -230,35 +231,9 @@ function initializeConfigManager() {
         const data = {
             name: configName,
             overwrite: currentConfig.includes("~unsaved~"),
-            config: {
-                hyperparameters: {},
-                training_config: {},
-                wrappers: [],
-                callbacks: [],
-            },
+            config: collectTrainingConfig(),
         };
 
-        // Gather data from UI
-        document.querySelectorAll(".config-input").forEach((input) => {
-            const name = input.name;
-            const value = input.value;
-
-            if (name.startsWith("hyperparameters")) {
-                data.config.hyperparameters[name.split("[")[1].replace("]", "")] = value;
-            } else if (name.startsWith("training_config")) {
-                data.config.training_config[name.split("[")[1].replace("]", "")] = value;
-            }
-        });
-
-        document.querySelectorAll(".wrapper-checkbox:checked").forEach((checkbox) => {
-            data.config.wrappers.push(checkbox.dataset.key);
-        });
-
-        document.querySelectorAll(".callback-checkbox:checked").forEach((checkbox) => {
-            data.config.callbacks.push(checkbox.dataset.key);
-        });
-
-        // Save configuration
         try {
             const response = await fetch("/config/save_config", {
                 method: "POST",
@@ -273,17 +248,16 @@ function initializeConfigManager() {
             configSelect.value = configName;
             isUnsaved = false;
         } catch (error) {
-            console.error("Error saving configuration:", error);
-            alert("Failed to save configuration.");
+            console.error("❌ Error saving configuration:", error);
         }
     }
 
-    // Delete a selected configuration
+    // ✅ Delete a selected configuration
     async function deleteSelectedConfig() {
         const configName = document.getElementById("config-select").value;
 
         if (configName === "default") {
-            alert("Cannot delete the Default configuration.");
+            alert("❌ Cannot delete the Default configuration.");
             return;
         }
 
@@ -293,21 +267,21 @@ function initializeConfigManager() {
             alert(result.message);
             await fetchConfigs();
         } catch (error) {
-            console.error("Error deleting configuration:", error);
-            alert("Failed to delete configuration.");
+            console.error("❌ Error deleting configuration:", error);
         }
     }
 
-    // Attach event listeners
+    // ✅ Attach event listeners
     document.getElementById("load-config").onclick = loadSelectedConfig;
     document.getElementById("save-changes").onclick = saveCurrentConfig;
     document.getElementById("delete-config").onclick = deleteSelectedConfig;
 
-    // Initialize configuration manager
+    // ✅ Initialize configuration manager
     fetchConfigs();
     addChangeListeners();
-    console.log("Configuration Manager initialized.");
+    console.log("✅ Configuration Manager initialized.");
 }
+
 
 
 // Initialize log streaming for training logs
@@ -465,91 +439,6 @@ function initializeBatchSizeDropdown() {
 }
 
 
-async function initializeShaderToggles() {
-    const shaderToggles = {
-        all: document.getElementById("shader-all-toggle"),
-        radial_distortion: document.getElementById("shader-radial-distortion"),
-        scanlines: document.getElementById("shader-scanlines"),
-        dot_mask: document.getElementById("shader-dot-mask"),
-        rolling_lines: document.getElementById("shader-rolling-lines"),
-        gamma_correction: document.getElementById("shader-gamma-correction"),
-    };
-
-    if (Object.values(shaderToggles).some(toggle => !toggle)) {
-        console.error("Some shader toggle elements are missing.");
-        return;
-    }
-
-    // Fetch initial shader settings
-    try {
-        const response = await fetch("/training/shader_status");
-        const { shaderSettings } = await response.json();
-
-        for (const [key, state] of Object.entries(shaderSettings)) {
-            if (shaderToggles[key]) shaderToggles[key].checked = state;
-        }
-
-        // Sync "Enable All" toggle state
-        shaderToggles.all.checked = Object.values(shaderSettings).every(Boolean);
-    } catch (error) {
-        console.error("Error fetching shader settings:", error);
-    }
-
-    // Add individual toggle listeners
-    for (const [key, toggle] of Object.entries(shaderToggles)) {
-        if (key === "all") continue;
-
-        toggle.addEventListener("change", async () => {
-            try {
-                const response = await fetch("/training/toggle_shader", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ key, enabled: toggle.checked }),
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    console.log(`Shader "${key}" toggled: ${toggle.checked ? "enabled" : "disabled"}`);
-                    // Sync "Enable All" checkbox
-                    shaderToggles.all.checked = Object.values(shaderToggles).slice(1).every(t => t.checked);
-                } else {
-                    console.error(`Failed to toggle shader "${key}".`);
-                    toggle.checked = !toggle.checked; // Revert on failure
-                }
-            } catch (error) {
-                console.error(`Error toggling shader "${key}":`, error);
-                toggle.checked = !toggle.checked; // Revert on error
-            }
-        });
-    }
-
-    // Add "Enable All" listener
-    shaderToggles.all.addEventListener("change", async () => {
-        const enableAll = shaderToggles.all.checked;
-
-        try {
-            const response = await fetch("/training/toggle_shader_all", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enableAll }),
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                console.log(`All shaders toggled: ${enableAll ? "enabled" : "disabled"}`);
-                for (const [key, toggle] of Object.entries(shaderToggles)) {
-                    toggle.checked = enableAll;
-                }
-            } else {
-                console.error("Failed to toggle all shaders.");
-                shaderToggles.all.checked = !enableAll; // Revert on failure
-            }
-        } catch (error) {
-            console.error("Error toggling all shaders:", error);
-            shaderToggles.all.checked = !enableAll; // Revert on error
-        }
-    });
-}
 
 // Toggle the visibility of the dropdown menu
 function toggleDropdown(dropdownId) {
@@ -873,25 +762,42 @@ function confirmCharacterSelection() {
 function initializeListenersForTrainingDashboard() {
     const gameSelect = document.getElementById("game-select");
 
-    if (gameSelect) {
-        // Auto-select the first game if none is selected
-        if (!gameSelect.value) {
-            gameSelect.value = gameSelect.options[0]?.value;
-            console.log(`No game selected, defaulting to: ${gameSelect.value}`);
-            initializeGameSelectListener(gameSelect.value); // Populate environment settings for the default selection
-        }
-
-        // Remove any existing event listeners to prevent duplication
-        gameSelect.removeEventListener("change", handleGameChange);
-        gameSelect.addEventListener("change", handleGameChange);
+    if (!gameSelect) {
+        console.error("❌ Error: 'game-select' element not found in DOM.");
+        return;
     }
 
+    // ✅ Remove any existing event listeners before adding a new one
+    gameSelect.removeEventListener("change", handleGameChange);
+    gameSelect.addEventListener("change", handleGameChange);
     async function handleGameChange(event) {
         const gameId = event.target.value;
         await initializeGameSelectListener(gameId);
     }
+    // ✅ Ensure dynamic values are populated before restoring stored config
+    async function initializeAndRestoreConfig() {
+        // Get the stored active config (if any)
+        const storedConfig = await fetchStoredConfig();
 
-    // Initialize additional components
+        // Load dynamic game settings first
+        await initializeGameSelectListener(gameSelect.value);
+
+        // Restore stored values after dynamic elements are populated
+        if (storedConfig) {
+            restoreStoredConfig(storedConfig);
+        }
+    }
+
+    // ✅ Auto-select the first game if none is selected
+    if (!gameSelect.value) {
+        gameSelect.value = gameSelect.options[0]?.value || "";
+        console.log(`⚠️ No game selected. Defaulting to: ${gameSelect.value}`);
+    }
+
+    // ✅ Initialize settings for the selected game and restore any stored configuration
+    initializeAndRestoreConfig();
+
+    // ✅ Initialize additional components
     initializeCharacterSelectListener();
     initializeConfigManager();
     initializeTooltips();
@@ -899,7 +805,77 @@ function initializeListenersForTrainingDashboard() {
     initializeVideoFeed();
     initializeBatchSizeDropdown();
     initializeFilterKeysDropdown();
-    initializeShaderToggles();
 
-    console.log("Listeners for Training Dashboard initialized.");
+    console.log("✅ Listeners for Training Dashboard initialized.");
 }
+
+// ✅ Fetch stored configuration from backend or localStorage
+async function fetchStoredConfig() {
+    try {
+        const response = await fetch("/training/current_config");
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+        const { config } = await response.json();
+        return config || null;
+    } catch (error) {
+        console.error("❌ Error fetching stored config:", error);
+        return null;
+    }
+}
+
+// ✅ Restore stored values after dynamic elements are populated
+function restoreStoredConfig(config) {
+    if (!config) return;
+
+    console.log("🔄 Restoring stored configuration:", config);
+
+    // ✅ Populate training config fields
+    Object.entries(config.training_config || {}).forEach(([key, value]) => {
+        const input = document.querySelector(`[name="training_config[${key}]"]`);
+        if (input) input.value = value !== undefined && value !== null ? value : "";
+    });
+
+    // ✅ Populate hyperparameters fields
+    Object.entries(config.hyperparameters || {}).forEach(([key, value]) => {
+        const input = document.querySelector(`[name="hyperparameters[${key}]"]`);
+        if (input) input.value = value !== undefined && value !== null ? value : "";
+    });
+
+    // ✅ Populate environment settings AFTER dynamic elements are loaded
+    setTimeout(() => {
+        Object.entries(config.env_settings || {}).forEach(([key, value]) => {
+            const input = document.querySelector(`[name="env_settings[${key}]"]`);
+            if (input) input.value = value !== undefined && value !== null ? value : "";
+        });
+
+        // ✅ Ensure dropdowns dynamically populated have correct values
+        document.querySelectorAll("select.config-input").forEach((select) => {
+            if (config.env_settings[select.name]) {
+                select.value = config.env_settings[select.name];
+            }
+        });
+
+        console.log("✅ Stored environment settings restored.");
+    }, 500); // Delay ensures dropdowns are dynamically populated before setting values
+
+    // ✅ Populate wrapper settings
+    Object.entries(config.wrapper_settings || {}).forEach(([key, value]) => {
+        const input = document.querySelector(`[name="wrapper_settings[${key}]"]`);
+        if (input) input.value = value !== undefined && value !== null ? value : "";
+    });
+
+    // ✅ Set checked wrappers and callbacks
+    document.querySelectorAll(".wrapper-checkbox").forEach((checkbox) => {
+        checkbox.checked = config.enabled_wrappers.includes(checkbox.value);
+    });
+
+    document.querySelectorAll(".callback-checkbox").forEach((checkbox) => {
+        checkbox.checked = config.enabled_callbacks.includes(checkbox.value);
+    });
+
+    console.log("✅ Stored configuration fully restored.");
+}
+
+// ✅ Ensure this function runs only when DOM is fully loaded
+document.addEventListener("DOMContentLoaded", () => {
+    initializeListenersForTrainingDashboard();
+});
