@@ -10,6 +10,9 @@ function initializeListenersForSettingsMenu() {
     // Initialize token form submission
     initializeTokenForm();
 
+    // Initialize open folder buttons
+    initializeOpenFolderButtons();
+
     console.log("Listeners for Settings Menu initialized.");
 }
 
@@ -135,5 +138,30 @@ async function saveToken(token) {
     } catch (error) {
         console.error("Error saving token:", error);
         alert("An error occurred while saving the token.");
+    }
+}
+
+// Initialize the "Open Checkpoints" and "Open Logs" buttons
+function initializeOpenFolderButtons() {
+    const openCheckpointsBtn = document.getElementById("open-checkpoints");
+    const openLogsBtn = document.getElementById("open-logs");
+
+    function openFolder(url, button) {
+        if (button.disabled) return; // Prevents multiple clicks
+
+        button.disabled = true; // Temporarily disable the button
+        fetch(url, { method: "GET" })
+            .catch(error => console.error(`Error opening folder: ${error}`))
+            .finally(() => {
+                setTimeout(() => (button.disabled = false), 500); // Re-enable after 500ms
+            });
+    }
+
+    if (openCheckpointsBtn) {
+        openCheckpointsBtn.addEventListener("pointerdown", () => openFolder("/settings/open-checkpoints", openCheckpointsBtn));
+    }
+
+    if (openLogsBtn) {
+        openLogsBtn.addEventListener("pointerdown", () => openFolder("/settings/open-logs", openLogsBtn));
     }
 }

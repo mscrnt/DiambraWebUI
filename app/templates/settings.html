@@ -1,4 +1,4 @@
-<!-- path: .app/templates/settings.html -->
+<!-- path: app/templates/settings.html -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -15,8 +15,16 @@
     </header>
 
     <main>
+        <!-- Open Checkpoints and Logs Section -->
+        <section>
+            <h2>Open Folders</h2>
+            <button id="open-checkpoints" class="btn">Open Checkpoints</button>
+            <button id="open-logs" class="btn">Open Logs</button>
+        </section>
+
         <!-- Warning or Success Message -->
         <section id="credentials-section">
+            <h2>Update Token</h2>
             <div id="credentials-warning" class="warning" style="display: none;">
                 <p>
                     <strong>Warning:</strong> No credentials file found. Please log in to Diambra.ai and paste your token to proceed.
@@ -27,9 +35,7 @@
             </div>
         </section>
 
-        <!-- Token Input Section -->
         <section>
-            <h2>Update Token</h2>
             <form id="update-token-form" method="POST" action="/settings/save-token">
                 <label for="token">Enter or Update Your Diambra.ai Token:</label>
                 <input type="text" id="token" name="token" placeholder="Paste your token here" required>
