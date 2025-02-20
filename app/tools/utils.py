@@ -8,11 +8,14 @@ import inspect
 import pickle
 import os
 import tempfile
-from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG, DEFAULT_PATHS, ENV_SETTINGS, WRAPPER_SETTINGS, AVAILABLE_GAMES
+from app import DEFAULT_HYPERPARAMETERS, DEFAULT_TRAINING_CONFIG, DEFAULT_PATHS, ENV_SETTINGS, WRAPPER_SETTINGS
+
+
 
 # Initialize a logger specific to this module
 
 app_logger = LogManager("utils")
+
 
 
 class diambra_blueprint(ABC):
@@ -235,3 +238,4 @@ def filter_config(config, allowed_keys):
     :return: Filtered dictionary.
     """
     return {key: config[key] for key in config if key in allowed_keys}
+

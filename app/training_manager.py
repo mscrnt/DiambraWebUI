@@ -2,11 +2,8 @@
 
 from app import DEFAULT_TRAINING_CONFIG, DEFAULT_HYPERPARAMETERS, ENV_SETTINGS, WRAPPER_SETTINGS
 from app.log_manager import LogManager
-from app.tools.utils import dynamic_load_blueprints, filter_config
-from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CallbackList
-from diambra.arena import load_settings_flat_dict, SpaceTypes
-from diambra.arena.stable_baselines3.make_sb3_env import make_sb3_env, EnvironmentSettings, WrappersSettings
+from app.tools.utils import dynamic_load_blueprints
+from diambra.arena import SpaceTypes
 from diambra.arena.stable_baselines3.sb3_utils import linear_schedule
 import threading
 import json
@@ -38,8 +35,6 @@ class TrainingManager:
         self.active_config = {"config": None, "use_active": False}
 
         # Other attributes
-        self.training_active_event = threading.Event()
-        self.training_active_event.clear()
         self.model_updated_flag = threading.Event()
         self.model_updated_flag.clear()
         self.model = None
@@ -58,6 +53,7 @@ class TrainingManager:
             "gamma_correction": False,
         }
         
+
     def get_shader_settings(self):
         """Get the current shader settings."""
         return self.shader_settings
@@ -93,7 +89,6 @@ class TrainingManager:
         # Remove non-pickleable objects
         state.pop("model", None)
         state.pop("env", None)
-        state.pop("training_active_event", None)
         state.pop("model_updated_flag", None)
         return state
 
@@ -102,8 +97,6 @@ class TrainingManager:
         self.__dict__.update(state)
         self.model = None
         self.env = None
-        self.training_active_event = threading.Event()
-        self.training_active_event.clear()
         self.model_updated_flag = threading.Event()
         self.model_updated_flag.clear()
 
@@ -202,16 +195,6 @@ class TrainingManager:
             "wrapper_settings": WRAPPER_SETTINGS.copy(),
             "env_settings": ENV_SETTINGS.copy(),
         }
-
-    def stop_training(self):
-        """Stop training gracefully."""
-        logger.info("Stopping training...")
-        self.training_active_event.clear()
-        logger.info("Training stopped.")
-
-    def is_training_active(self):
-        """Check if training is active."""
-        return self.training_active_event.is_set()
 
 
     def initialize_training(self):
@@ -382,8 +365,3 @@ class TrainingManager:
         logger.debug(f"Serialized Callbacks: {json.dumps(serialized_callbacks, indent=4)}")
 
 
-
-    def start_training(self):
-        """Start the training loop."""
-        logger.info("Starting training process...")
-        self.training_active_event.set()
