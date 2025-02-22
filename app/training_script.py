@@ -35,12 +35,6 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
         "characters": {
             "type": (str, tuple),
             "default": None,
-            "allowed": [
-                "Chun-Li", "Ryu", "Zangief", "Morrigan", "Captain Commando", "Megaman", "Strider Hiryu",
-                "Spider Man", "Jin", "Captain America", "Venom", "Hulk", "Gambit", "War Machine", "Wolverine",
-                "Roll", "Onslaught", "Alt-Venom", "Alt-Hulk", "Alt-War Machine", "Shadow Lady", "Alt-Morrigan",
-                None
-            ],
         },
         "outfits": {"type": int, "default": 1},
     }
@@ -100,13 +94,8 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
                     else:
                         value = value.strip()
                 if isinstance(value, tuple):
-                    if len(value) > 3:
-                        raise ValueError(f"'characters' tuple cannot have more than 3 elements: {value}")
-                    for character in value:
-                        if character not in rules["allowed"]:
-                            raise ValueError(f"Invalid character '{character}' in 'characters'. Allowed: {rules['allowed']}")
-                elif isinstance(value, str) and value not in rules["allowed"]:
-                    raise ValueError(f"Invalid character '{value}' in 'characters'. Allowed: {rules['allowed']}")
+                    if len(value) > 2:
+                        raise ValueError(f"'characters' tuple cannot have more than 2 elements: {value}")
                 return value
 
             # Handle `role` conversion
@@ -173,6 +162,7 @@ def validate_and_convert(env_settings, wrapper_settings, hyperparameters):
 
     return env_settings, wrapper_settings, hyperparameters
 
+
 def validate_and_initialize_blueprints(training_manager):
     """
     Validate and initialize dynamically loaded blueprints for callbacks and wrappers.
@@ -225,6 +215,7 @@ def load_from_pickle(file_path):
         print(f"Failed to load object from {file_path}: {e}")
         raise RuntimeError(f"Failed to load object from {file_path}: {e}")
 
+
 def signal_handler(signum, frame):
     """Handles termination signals (e.g., SIGTERM, SIGINT)."""
     global agent, env, save_path
@@ -235,6 +226,7 @@ def signal_handler(signum, frame):
         agent.save(model_path)
     print("Cleanup complete. Exiting.")
     sys.exit(0)
+
 
 def main():
     """Main function for setting up and training the PPO agent."""
@@ -352,9 +344,9 @@ def main():
     try:
         agent.learn(total_timesteps=int(training_config["total_timesteps"]), callback=callback_list)
     except KeyboardInterrupt:
-        print("\nraining interrupted by user.")
+        print("\nTraining interrupted by user.")
     except Exception as e:
-        print(f"")
+        print(f"Error during training: {e}")
     finally:
         print("Saving the model before exiting...")
         try:
@@ -365,6 +357,7 @@ def main():
         if env:
             print("Closing the environment...")
             try:
+                env.close()
                 print("Environment closed.")
             except Exception as e:
                 print(f"Failed to close environment: {e}")
@@ -375,6 +368,7 @@ def main():
         env.close()
     except Exception as e:
         print(f"")
+
 
 if __name__ == "__main__":
     main()

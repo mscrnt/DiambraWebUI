@@ -2,6 +2,25 @@
 
 let tooltips = {};
 
+// Utility function for element selection with error handling
+function getElement(selector, isId = true) {
+    const element = isId ? document.getElementById(selector) : document.querySelector(selector);
+    if (!element) console.error(`Element not found: ${selector}`);
+    return element;
+}
+
+// Utility function for fetching data
+async function fetchData(url, options = {}) {
+    try {
+        const response = await fetch(url, options);
+        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch data from ${url}:`, error);
+        return null;
+    }
+}
+
 // Fetch the tooltips.json dynamically
 async function fetchTooltips() {
     try {
@@ -70,216 +89,161 @@ async function initializeTooltips() {
 function initializeConfigManager() {
     let isUnsaved = false;
 
-    // ✅ Fetch and populate available configurations
-    async function fetchConfigs() {
-        try {
-            const response = await fetch("/config/list_configs");
-            const { configs } = await response.json();
-            const configSelect = document.getElementById("config-select");
+    // Utility function to update options in a dropdown
+    function populateDropdown(selectElement, options, defaultOption = { value: "default", text: "Default" }) {
+        selectElement.innerHTML = `<option value="${defaultOption.value}">${defaultOption.text}</option>`;
+        options.forEach(option => {
+            const opt = document.createElement("option");
+            opt.value = option;
+            opt.textContent = option;
+            selectElement.appendChild(opt);
+        });
+    }
 
-            // Populate dropdown
-            configSelect.innerHTML = '<option value="default">Default</option>';
-            configs.forEach((config) => {
-                const option = document.createElement("option");
-                option.value = config;
-                option.textContent = config;
-                configSelect.appendChild(option);
+    // Utility function to populate inputs
+    function populateInputs(config, section, selectorPrefix) {
+        Object.entries(config[section] || {}).forEach(([key, value]) => {
+            const input = getElement(`[name="${selectorPrefix}[${key}]"]`, false);
+            if (input) {
+                input.value = input.type === "number" && value !== undefined ? parseFloat(value) : value || "";
+            }
+        });
+    }
+
+    // Fetch and populate configurations
+    async function fetchConfigs() {
+        const configSelect = getElement("config-select");
+        const data = await fetchData("/config/list_configs");
+        if (data && data.configs) {
+            populateDropdown(configSelect, data.configs);
+            console.log("Configurations fetched and populated.");
+        }
+    }
+
+    // Mark the configuration as unsaved
+    function markUnsaved() {
+        const configSelect = getElement("config-select");
+        if (isUnsaved) return;
+
+        const currentConfig = configSelect.value;
+        const unsavedOption = document.createElement("option");
+        unsavedOption.value = currentConfig.includes("~unsaved~")
+            ? currentConfig
+            : `${currentConfig} ~unsaved~`;
+        unsavedOption.textContent = unsavedOption.value;
+        configSelect.appendChild(unsavedOption);
+        configSelect.value = unsavedOption.value;
+        isUnsaved = true;
+    }
+
+    // Load a configuration (default or selected)
+    async function loadConfig(configName) {
+        const endpoint = configName === "default" ? "/config/load_default_config" : `/config/load_config/${configName}`;
+        const data = await fetchData(endpoint);
+
+        if (data && data.config) {
+            populateInputs(data.config, "training_config", "training_config");
+            populateInputs(data.config, "hyperparameters", "hyperparameters");
+
+            document.querySelectorAll(".wrapper-checkbox").forEach(checkbox => {
+                checkbox.checked = data.config.enabled_wrappers?.includes(checkbox.value) || false;
             });
 
-            console.log("✅ Configurations fetched and populated.");
-        } catch (error) {
-            console.error("❌ Failed to fetch configurations:", error);
+            document.querySelectorAll(".callback-checkbox").forEach(checkbox => {
+                checkbox.checked = data.config.enabled_callbacks?.includes(checkbox.value) || false;
+            });
+
+            console.log(`Configuration '${configName}' loaded successfully.`);
+        } else {
+            console.error(`Failed to load configuration '${configName}'.`);
         }
     }
 
-    // ✅ Track changes to mark config as unsaved
-    function markUnsaved() {
-        const configSelect = document.getElementById("config-select");
-        const currentConfig = configSelect.value;
-
-        if (!isUnsaved) {
-            let unsavedOption;
-            if (currentConfig === "default") {
-                unsavedOption = document.createElement("option");
-                unsavedOption.value = "unsaved";
-                unsavedOption.textContent = "Unsaved";
-            } else if (!currentConfig.includes("~unsaved~")) {
-                unsavedOption = document.createElement("option");
-                unsavedOption.value = `${currentConfig} ~unsaved~`;
-                unsavedOption.textContent = `${currentConfig} ~unsaved~`;
-            }
-
-            if (unsavedOption) {
-                configSelect.appendChild(unsavedOption);
-                configSelect.value = unsavedOption.value;
-                isUnsaved = true;
-            }
-        }
-    }
-
-    // ✅ Add change listeners to track updates
-    function addChangeListeners() {
-        const inputs = document.querySelectorAll(".config-input, .wrapper-checkbox, .callback-checkbox");
-        inputs.forEach((input) => input.addEventListener("change", markUnsaved));
-    }
-
-    // ✅ Load the default configuration
-    async function loadDefaultConfig() {
-        try {
-            const response = await fetch("/config/load_default_config");
-            const { config } = await response.json();
-
-            if (response.ok) {
-                populateFields(config);
-                console.log("✅ Default configuration loaded.");
-            } else {
-                console.error("❌ Failed to load default configuration:", config.message);
-            }
-        } catch (error) {
-            console.error("❌ Error loading default configuration:", error);
-        }
-    }
-
-    // ✅ Load a selected configuration
-    async function loadSelectedConfig() {
-        const configName = document.getElementById("config-select").value;
-
-        if (configName === "default") {
-            await loadDefaultConfig();
-            return;
-        }
-
-        try {
-            const response = await fetch(`/config/load_config/${configName}`);
-            const { config } = await response.json();
-
-            if (response.ok) {
-                populateFields(config);
-                console.log(`✅ Configuration '${configName}' loaded.`);
-            } else {
-                console.error("❌ Failed to load configuration:", config.message);
-            }
-        } catch (error) {
-            console.error("❌ Error loading configuration:", error);
-        }
-    }
-
-    // ✅ Populate the fields with the configuration data
-    function populateFields(config) {
-        if (!config) return;
-
-        // ✅ Populate training config fields
-        Object.entries(config.training_config || {}).forEach(([key, value]) => {
-            const input = document.querySelector(`[name="training_config[${key}]"]`);
-            if (input) {
-                input.value = value !== undefined && value !== null ? value : "";
-            }
-        });
-
-        // ✅ Populate hyperparameters fields
-        Object.entries(config.hyperparameters || {}).forEach(([key, value]) => {
-            const input = document.querySelector(`[name="hyperparameters[${key}]"]`);
-            if (input) {
-                input.value = value !== undefined && value !== null ? value : "";
-            }
-        });
-
-        // ✅ Populate environment settings
-        Object.entries(config.env_settings || {}).forEach(([key, value]) => {
-            const input = document.querySelector(`[name="env_settings[${key}]"]`);
-            if (input) {
-                input.value = value !== undefined && value !== null ? value : "";
-            }
-        });
-
-        // ✅ Populate wrapper settings
-        Object.entries(config.wrapper_settings || {}).forEach(([key, value]) => {
-            const input = document.querySelector(`[name="wrapper_settings[${key}]"]`);
-            if (input) {
-                input.value = value !== undefined && value !== null ? value : "";
-            }
-        });
-
-        // ✅ Set checked wrappers and callbacks
-        document.querySelectorAll(".wrapper-checkbox").forEach((checkbox) => {
-            checkbox.checked = config.wrappers.includes(checkbox.value);
-        });
-
-        document.querySelectorAll(".callback-checkbox").forEach((checkbox) => {
-            checkbox.checked = config.callbacks.includes(checkbox.value);
-        });
-
-        console.log("✅ Configuration fields populated successfully.");
-    }
-
-    // ✅ Save the current configuration
-    async function saveCurrentConfig() {
-        const configSelect = document.getElementById("config-select");
+    // Save the current configuration
+    async function saveConfig() {
+        const configSelect = getElement("config-select");
         const currentConfig = configSelect.value;
 
         if (currentConfig === "default") {
-            alert("❌ Cannot overwrite the Default configuration.");
+            alert("Cannot overwrite the Default configuration.");
             return;
         }
 
-        let configName = currentConfig.includes("~unsaved~")
+        const configName = currentConfig.includes("~unsaved~")
             ? currentConfig.replace(" ~unsaved~", "")
-            : prompt("Enter a name for the new configuration:");
-
+            : prompt("Enter a name for the configuration:");
         if (!configName) return;
 
         const data = {
             name: configName,
             overwrite: currentConfig.includes("~unsaved~"),
-            config: collectTrainingConfig(),
+            config: {
+                training_config: {},
+                hyperparameters: {},
+                wrappers: [],
+                callbacks: [],
+            },
         };
 
-        try {
-            const response = await fetch("/config/save_config", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data),
-            });
+        document.querySelectorAll(".config-input").forEach(input => {
+            const [section, key] = input.name.match(/(\w+)\[(\w+)\]/).slice(1);
+            data.config[section][key] = input.value;
+        });
 
-            const result = await response.json();
-            alert(result.message);
+        document.querySelectorAll(".wrapper-checkbox:checked").forEach(checkbox => {
+            data.config.wrappers.push(checkbox.value);
+        });
 
+        document.querySelectorAll(".callback-checkbox:checked").forEach(checkbox => {
+            data.config.callbacks.push(checkbox.value);
+        });
+
+        const response = await fetchData("/config/save_config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+
+        if (response) {
+            alert(response.message);
             await fetchConfigs();
             configSelect.value = configName;
             isUnsaved = false;
-        } catch (error) {
-            console.error("❌ Error saving configuration:", error);
         }
     }
 
-    // ✅ Delete a selected configuration
-    async function deleteSelectedConfig() {
-        const configName = document.getElementById("config-select").value;
+    // Delete the selected configuration
+    async function deleteConfig() {
+        const configName = getElement("config-select").value;
 
         if (configName === "default") {
-            alert("❌ Cannot delete the Default configuration.");
+            alert("Cannot delete the Default configuration.");
             return;
         }
 
-        try {
-            const response = await fetch(`/config/delete_config/${configName}`, { method: "DELETE" });
-            const result = await response.json();
-            alert(result.message);
+        const response = await fetchData(`/config/delete_config/${configName}`, { method: "DELETE" });
+        if (response) {
+            alert(response.message);
             await fetchConfigs();
-        } catch (error) {
-            console.error("❌ Error deleting configuration:", error);
         }
     }
 
-    // ✅ Attach event listeners
-    document.getElementById("load-config").onclick = loadSelectedConfig;
-    document.getElementById("save-changes").onclick = saveCurrentConfig;
-    document.getElementById("delete-config").onclick = deleteSelectedConfig;
+    // Add event listeners
+    function addListeners() {
+        getElement("load-config").onclick = () => loadConfig(getElement("config-select").value);
+        getElement("save-changes").onclick = saveConfig;
+        getElement("delete-config").onclick = deleteConfig;
+        document.querySelectorAll(".config-input, .wrapper-checkbox, .callback-checkbox").forEach(input => {
+            input.addEventListener("change", markUnsaved);
+        });
+    }
 
-    // ✅ Initialize configuration manager
-    fetchConfigs();
-    addChangeListeners();
-    console.log("✅ Configuration Manager initialized.");
+    // Initialize
+    (async function init() {
+        await fetchConfigs();
+        addListeners();
+        console.log("Configuration Manager initialized.");
+    })();
 }
 
 
@@ -762,42 +726,25 @@ function confirmCharacterSelection() {
 function initializeListenersForTrainingDashboard() {
     const gameSelect = document.getElementById("game-select");
 
-    if (!gameSelect) {
-        console.error("❌ Error: 'game-select' element not found in DOM.");
-        return;
+    if (gameSelect) {
+        // Auto-select the first game if none is selected
+        if (!gameSelect.value) {
+            gameSelect.value = gameSelect.options[0]?.value;
+            console.log(`No game selected, defaulting to: ${gameSelect.value}`);
+            initializeGameSelectListener(gameSelect.value); // Populate environment settings for the default selection
+        }
+
+        // Remove any existing event listeners to prevent duplication
+        gameSelect.removeEventListener("change", handleGameChange);
+        gameSelect.addEventListener("change", handleGameChange);
     }
 
-    // ✅ Remove any existing event listeners before adding a new one
-    gameSelect.removeEventListener("change", handleGameChange);
-    gameSelect.addEventListener("change", handleGameChange);
     async function handleGameChange(event) {
         const gameId = event.target.value;
         await initializeGameSelectListener(gameId);
     }
-    // ✅ Ensure dynamic values are populated before restoring stored config
-    async function initializeAndRestoreConfig() {
-        // Get the stored active config (if any)
-        const storedConfig = await fetchStoredConfig();
 
-        // Load dynamic game settings first
-        await initializeGameSelectListener(gameSelect.value);
-
-        // Restore stored values after dynamic elements are populated
-        if (storedConfig) {
-            restoreStoredConfig(storedConfig);
-        }
-    }
-
-    // ✅ Auto-select the first game if none is selected
-    if (!gameSelect.value) {
-        gameSelect.value = gameSelect.options[0]?.value || "";
-        console.log(`⚠️ No game selected. Defaulting to: ${gameSelect.value}`);
-    }
-
-    // ✅ Initialize settings for the selected game and restore any stored configuration
-    initializeAndRestoreConfig();
-
-    // ✅ Initialize additional components
+    // Initialize additional components
     initializeCharacterSelectListener();
     initializeConfigManager();
     initializeTooltips();
@@ -806,76 +753,5 @@ function initializeListenersForTrainingDashboard() {
     initializeBatchSizeDropdown();
     initializeFilterKeysDropdown();
 
-    console.log("✅ Listeners for Training Dashboard initialized.");
+    console.log("Listeners for Training Dashboard initialized.");
 }
-
-// ✅ Fetch stored configuration from backend or localStorage
-async function fetchStoredConfig() {
-    try {
-        const response = await fetch("/training/current_config");
-        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-        const { config } = await response.json();
-        return config || null;
-    } catch (error) {
-        console.error("❌ Error fetching stored config:", error);
-        return null;
-    }
-}
-
-// ✅ Restore stored values after dynamic elements are populated
-function restoreStoredConfig(config) {
-    if (!config) return;
-
-    console.log("🔄 Restoring stored configuration:", config);
-
-    // ✅ Populate training config fields
-    Object.entries(config.training_config || {}).forEach(([key, value]) => {
-        const input = document.querySelector(`[name="training_config[${key}]"]`);
-        if (input) input.value = value !== undefined && value !== null ? value : "";
-    });
-
-    // ✅ Populate hyperparameters fields
-    Object.entries(config.hyperparameters || {}).forEach(([key, value]) => {
-        const input = document.querySelector(`[name="hyperparameters[${key}]"]`);
-        if (input) input.value = value !== undefined && value !== null ? value : "";
-    });
-
-    // ✅ Populate environment settings AFTER dynamic elements are loaded
-    setTimeout(() => {
-        Object.entries(config.env_settings || {}).forEach(([key, value]) => {
-            const input = document.querySelector(`[name="env_settings[${key}]"]`);
-            if (input) input.value = value !== undefined && value !== null ? value : "";
-        });
-
-        // ✅ Ensure dropdowns dynamically populated have correct values
-        document.querySelectorAll("select.config-input").forEach((select) => {
-            if (config.env_settings[select.name]) {
-                select.value = config.env_settings[select.name];
-            }
-        });
-
-        console.log("✅ Stored environment settings restored.");
-    }, 500); // Delay ensures dropdowns are dynamically populated before setting values
-
-    // ✅ Populate wrapper settings
-    Object.entries(config.wrapper_settings || {}).forEach(([key, value]) => {
-        const input = document.querySelector(`[name="wrapper_settings[${key}]"]`);
-        if (input) input.value = value !== undefined && value !== null ? value : "";
-    });
-
-    // ✅ Set checked wrappers and callbacks
-    document.querySelectorAll(".wrapper-checkbox").forEach((checkbox) => {
-        checkbox.checked = config.enabled_wrappers.includes(checkbox.value);
-    });
-
-    document.querySelectorAll(".callback-checkbox").forEach((checkbox) => {
-        checkbox.checked = config.enabled_callbacks.includes(checkbox.value);
-    });
-
-    console.log("✅ Stored configuration fully restored.");
-}
-
-// ✅ Ensure this function runs only when DOM is fully loaded
-document.addEventListener("DOMContentLoaded", () => {
-    initializeListenersForTrainingDashboard();
-});
