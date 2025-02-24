@@ -16,7 +16,6 @@ Diambra WebUI is a Reinforcement Learning (RL) framework designed to train RL ag
   - [Usage](#usage)
     - [Training](#training)
     - [Evaluation](#evaluation)
-    - [Hyperparameter Optimization](#hyperparameter-optimization)
   - [Components](#components)
     - [Core Scripts](#core-scripts)
     - [Wrappers](#wrappers)
@@ -96,20 +95,31 @@ DiambraWebUI/
 
 1. **Clone the Repository**:
    ```bash
-   git clone <repository_url>
-   cd DiambraWebUI
+   git clone https://github.com/mscrnt/DiambraWebUI && cd DiambraWebUI
    ```
 
-2. **Set Up the Environment**:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+2. **Set Up the Environment**:  
+Enter each command one at a time in your terminal:
+
+  ```bash
+  python -m venv venv
+  ```
+
+  Then activate the virtual environment:
+  
+  ```bash
+  source venv/bin/activate  # For Windows use: venv\Scripts\activate
+  ```
+  
+  Finally, install the required packages:
+  
+  ```bash
+  pip install -r requirements.txt
+  ```
 
 3. **Run the WebUI**:
    ```bash
-   python app.py
+   flask run --host=0.0.0.0 --port=5000 --debug
    ```
 
 4. **Access the Interface**:
@@ -131,14 +141,7 @@ DiambraWebUI/
   python eval.py --model checkpoints/model.zip
   ```
 
-### Hyperparameter Optimization
 
-- Run Optuna for tuning:
-  ```bash
-  python optuna.py
-  ```
-
----
 
 ## Components
 
@@ -146,7 +149,6 @@ DiambraWebUI/
 
 1. **`train.py`**: Main training logic.
 2. **`eval.py`**: Model evaluation.
-3. **`optuna.py`**: Hyperparameter tuning.
 4. **`log_manager.py`**: Centralized logging across components.
 
 ### Wrappers
