@@ -119,7 +119,7 @@ Enter each command one at a time in your terminal:
 
 3. **Run the WebUI**:
    ```bash
-   flask run --host=0.0.0.0 --port=5000 --debug
+   cd app && flask run --host=0.0.0.0 --port=5000 --debug
    ```
 
 4. **Access the Interface**:
