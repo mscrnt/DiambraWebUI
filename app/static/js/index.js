@@ -44,7 +44,7 @@ function initializeHeaderControls() {
     
             const result = await response.json();
             if (response.ok) {
-                alert(result.message || "Training started successfully!");
+                // alert(result.message || "Training started successfully!");
                 updateStatus(true, false);
                 pollRenderStatus();
             } else {
@@ -67,7 +67,7 @@ function initializeHeaderControls() {
             const response = await fetch("/training/stop_training", { method: "POST" });
             const result = await response.json();
             if (response.ok) {
-                alert(result.message || "Training stopped successfully!");
+                // alert(result.message || "Training stopped successfully!");
             } else {
                 console.error(result.message);
                 alert(`Error: ${result.message}`);
