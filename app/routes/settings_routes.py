@@ -37,12 +37,14 @@ def create_settings_blueprint(app_logger):
             return {"error": "Token is required"}, 400
 
         try:
+            # Get credentials file path from DEFAULT_PATHS
+            credentials_file = DEFAULT_PATHS["credentials_file"]
+            credentials_dir = os.path.dirname(credentials_file)
+
             # Ensure the directory exists
-            credentials_dir = DEFAULT_PATHS["dimabra_path"]
             os.makedirs(credentials_dir, exist_ok=True)
 
             # Save the token to the credentials file
-            credentials_file = os.path.join(credentials_dir, "credentials")
             with open(credentials_file, "w") as cred_file:
                 cred_file.write(f"{token}")
 
@@ -51,6 +53,7 @@ def create_settings_blueprint(app_logger):
         except Exception as e:
             logger.error(f"Error saving token: {str(e)}")
             return {"error": str(e)}, 500
+
 
     @settings_blueprint.route("/check-credentials", methods=["GET"])
     def check_credentials():
