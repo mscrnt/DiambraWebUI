@@ -179,7 +179,7 @@ def create_training_blueprint(training_manager, app_logger, ):
         """Check if rendering is active."""
         try:
             is_rendering_active = rendering_container_manager.is_monitoring()
-            logger.debug(f"Rendering status checked: {'Active' if is_rendering_active else 'Inactive'}")
+            # logger.debug(f"Rendering status checked: {'Active' if is_rendering_active else 'Inactive'}")
             return jsonify({"rendering": is_rendering_active})
         except Exception as e:
             logger.error(f"Error fetching render status: {str(e)}", exc_info=True)
