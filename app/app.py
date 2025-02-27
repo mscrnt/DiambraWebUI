@@ -14,7 +14,46 @@ from threading import Timer
 import subprocess
 import os
 import time
+import psutil
+import signal
+import sys
 
+def shutdown_server(signal_received, frame):
+    """Handle graceful shutdown on Ctrl+C or system termination."""
+    logger.info("[GLOBAL] Shutting down Flask server...")
+    sys.exit(0)  # Exit cleanly without calling request.environ
+
+
+# Register signal handlers for clean shutdown
+signal.signal(signal.SIGINT, shutdown_server)  # Handle Ctrl+C
+signal.signal(signal.SIGTERM, shutdown_server)  # Handle system termination
+
+
+# Try to get the FLASK_PORT from the environment
+FLASK_PORT = os.getenv("FLASK_PORT")
+
+# If FLASK_PORT is not set, try detecting Flask's actual running port
+if not FLASK_PORT:
+    def find_flask_port():
+        """Find Flask's running port by checking processes."""
+        for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
+            try:
+                if process.info["name"] and "flask" in process.info["name"].lower():
+                    cmdline = process.info["cmdline"]
+                    if cmdline:
+                        for index, arg in enumerate(cmdline):
+                            if arg == "--port" and index + 1 < len(cmdline):
+                                return cmdline[index + 1]  # Found the port
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return "5000"  # Default if nothing found
+
+    FLASK_PORT = find_flask_port()
+
+# Store FLASK_PORT in the environment for later use
+os.environ["FLASK_PORT"] = FLASK_PORT
+
+# Flask app initialization
 app = Flask(__name__)
 logger = app_logger  # Use the global logger
 
@@ -103,10 +142,12 @@ def docker_start():
         )
 
 def start_tensorboard_via_api():
-    """Call the TensorBoard start API when the app launches."""
+    """Call the TensorBoard start API when the app launches, using the correct Flask port."""
     try:
-        logger.info("Attempting to start TensorBoard via API...")
-        response = requests.post("http://127.0.0.1:5000/tensorboard/start")
+        tensorboard_url = f"http://127.0.0.1:{FLASK_PORT}/tensorboard/start"
+        logger.info(f"Attempting to start TensorBoard via API: {tensorboard_url}")
+        response = requests.post(tensorboard_url)
+
         if response.status_code == 200:
             logger.info("TensorBoard successfully started via API.")
         else:

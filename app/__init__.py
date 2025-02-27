@@ -7,6 +7,7 @@ import zipfile
 # Get the root directory of the application
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
+
 # Default paths
 DEFAULT_PATHS = {
     "log_dir": os.path.join(APP_ROOT, "logs"),
@@ -151,4 +152,7 @@ __all__ = [
     "DEFAULT_HYPERPARAMETERS",
     "DEFAULT_PATHS",
     "DEFAULT_TRAINING_CONFIG",
+    "FLASK_PORT",
+    "APP_ROOT",
+    "roms_path",
 ]
