@@ -4,6 +4,7 @@ import threading
 import subprocess
 import os
 from app.log_manager import LogManager
+import sys
 
 
 class ContainerManager:
@@ -24,15 +25,23 @@ class ContainerManager:
     def _get_python_executable(self):
         """
         Get the path to the Python executable within the virtual environment.
-
+        
         :return: Path to the Python executable.
         """
         # Adjust to the root directory and locate the virtual environment
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        python_executable = os.path.join(project_root, "venv", "Scripts", "python.exe")
+
+        # Determine the correct Python executable based on the OS
+        if sys.platform == "win32":
+            python_executable = os.path.join(project_root, "venv", "Scripts", "python.exe")
+        else:
+            python_executable = os.path.join(project_root, "venv", "bin", "python")
+
+        # Check if the Python executable exists
         if not os.path.exists(python_executable):
             self.logger.error(f"Python executable not found at {python_executable}")
             raise FileNotFoundError(f"Python executable not found: {python_executable}")
+
         return python_executable
 
 
@@ -54,9 +63,13 @@ class ContainerManager:
 
         :return: Path to the pickle file.
         """
-        temp_dir = os.path.join(os.getcwd(), "tmp")
+        # Ensure the pickle file is placed inside `app/tmp/`
+        project_root = os.path.dirname(os.path.abspath(__file__))  # This points to `app/`
+        temp_dir = os.path.join(project_root, "tmp")
         os.makedirs(temp_dir, exist_ok=True)
         return os.path.join(temp_dir, "training_manager_snapshot.pkl")
+
+
 
     def start_container(self, container_group, script_path, num_envs):
         """
